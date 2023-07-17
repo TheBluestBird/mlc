@@ -2,17 +2,35 @@
 
 constexpr uint16_t flacBlockMaxSize = 4096;
 
+static const std::string_view title ("TITLE=");
+static const std::string_view artist ("ARTIST=");
+static const std::string_view album ("ALBUM=");
+static const std::string_view comment ("COMMENT=");
+static const std::string_view genre ("GENRE=");
+static const std::string_view track ("TRACKNUMBER=");
+static const std::string_view date ("DATE=");
+
+static const std::map<std::string, const std::string> knownTags {
+    {"ALBUMARTIST=", "TPE2="},
+    {"PUBLISHER=", "TPUB="},
+    {"LENGTH=", "TLEN="},
+    {"ISRC=", "TSRC="},
+    {"DISCNUMBER=", "TPOS="},
+    {"BPM=", "TBPM="}
+};
+
 FLACtoMP3::FLACtoMP3(uint8_t size) :
     inPath(),
     outPath(),
     decoder(FLAC__stream_decoder_new()),
     encoder(lame_init()),
     statusFLAC(),
-    output(),
+    output(nullptr),
     pcmCounter(0),
     pcmSize(size * flacBlockMaxSize),
     pcm(new int16_t[pcmSize * 2]),
-    mp3(new uint8_t[pcmSize])
+    outputBuffer(new uint8_t[pcmSize * 2]),
+    outputInitilized(false)
 {
 }
 
@@ -20,27 +38,33 @@ FLACtoMP3::~FLACtoMP3() {
     lame_close(encoder);
     FLAC__stream_decoder_delete(decoder);
     delete[] pcm;
-    delete[] mp3;
+    delete[] outputBuffer;
 }
 
 void FLACtoMP3::run() {
     FLAC__bool ok = FLAC__stream_decoder_process_until_end_of_stream(decoder);
     std::cout << "decoding: ";
-    if (ok)
+    if (ok) {
         std::cout << "succeeded";
-    else
+
+        flush();
+        int nwrite = lame_encode_flush(encoder, outputBuffer, pcmSize * 2);
+        fwrite((char*)outputBuffer ,nwrite, 1, output);
+
+        // // 7. Write INFO tag (OPTIONAL)
+        lame_mp3_tags_fid(encoder, output);
+
+    } else {
         std::cout << "FAILED";
+    }
 
     std::cout << std::endl;
     std::cout << "   state: " << FLAC__StreamDecoderStateString[FLAC__stream_decoder_get_state(decoder)] << std::endl;
 
-    flush();
-    int nwrite = lame_encode_flush(encoder, mp3, pcmSize);
-    output.write((char*)mp3, nwrite);
-
-    // // 7. Write INFO tag (OPTIONAL)
-    // // lame_mp3_tags_fid(lame, mp3);
-    output.close();
+    if (outputInitilized) {
+        fclose(output);
+        output = nullptr;
+    }
 }
 
 void FLACtoMP3::setInputFile(const std::string& path) {
@@ -50,6 +74,7 @@ void FLACtoMP3::setInputFile(const std::string& path) {
     inPath = path;
 
     FLAC__stream_decoder_set_md5_checking(decoder, true);
+    FLAC__stream_decoder_set_metadata_respond_all(decoder);
     statusFLAC = FLAC__stream_decoder_init_file(decoder, path.c_str(), write, metadata, error, this);
 }
 
@@ -59,22 +84,100 @@ void FLACtoMP3::setOutputFile(const std::string& path) {
 
     outPath = path;
 
-    // 3. Do some settings (OPTIONAL)
-    lame_set_in_samplerate(encoder, 44100);
     lame_set_VBR(encoder, vbr_default);
-    lame_set_VBR_quality(encoder, 2);
+    lame_set_VBR_quality(encoder, 0);
+    lame_set_quality(encoder, 0);
+}
 
-    // 4. Initialize parameters
+bool FLACtoMP3::initializeOutput() {
+    if (outputInitilized)
+        throw 5;
+
+    output = fopen(outPath.c_str(), "w+b");
+    if (output == 0) {
+        output = nullptr;
+        std::cout << "Error opening file " << outPath << std::endl;
+        return false;
+    }
+
     int ret = lame_init_params(encoder);
     if (ret < 0) {
         std::cout << "Error occurred during parameters initializing. Code = " << ret << std::endl;
-        throw 3;
+        fclose(output);
+        output = nullptr;
+        return false;
     }
 
-    output.open(path, std::ios::out | std::ios::binary);
+    outputInitilized = true;
+    return true;
 }
 
-void FLACtoMP3::decodeFrame(const int32_t * const buffer[], uint32_t size) {
+void FLACtoMP3::processInfo(const FLAC__StreamMetadata_StreamInfo& info) {
+    lame_set_in_samplerate(encoder, info.sample_rate);
+    lame_set_num_channels(encoder, info.channels);
+}
+
+void FLACtoMP3::processTags(const FLAC__StreamMetadata_VorbisComment& tags) {
+    for (FLAC__uint32 i = 0; i < tags.num_comments; ++i) {
+        const FLAC__StreamMetadata_VorbisComment_Entry& entry = tags.comments[i];
+        std::string_view comm((const char*)entry.entry);
+        if (comm.find(title) == 0) {
+            id3tag_set_title(encoder, comm.substr(title.size()).data());
+        } else if (comm.find(artist) == 0) {
+            id3tag_set_artist(encoder, comm.substr(artist.size()).data());
+        } else if (comm.find(album) == 0) {
+            id3tag_set_album(encoder, comm.substr(album.size()).data());
+        } else if (comm.find(comment) == 0) {
+            id3tag_set_comment(encoder, comm.substr(comment.size()).data());
+        } else if (comm.find(genre) == 0) {
+            id3tag_set_genre(encoder, comm.substr(genre.size()).data());
+        } else if (comm.find(track) == 0) {
+            id3tag_set_track(encoder, comm.substr(track.size()).data());
+        } else if (comm.find(date) == 0) {
+            std::string_view fullDate = comm.substr(date.size());
+            if (fullDate.size() == 10) {
+                std::string_view month = fullDate.substr(5, std::size_t(2));
+                std::string_view day = fullDate.substr(8);
+                std::string md = "TDAT=" + std::string(month) + std::string(day);
+                int res = id3tag_set_fieldvalue(encoder, md.c_str());
+                if (res != 0)
+                    std::cout << "wasn't able to set the date tag (" << md << ")" << std::endl;
+
+                fullDate = fullDate.substr(0, 4);   //year;
+            }
+            id3tag_set_year(encoder, std::string(fullDate).data());
+        } else if (!tryKnownTag(comm)) {
+            std::string tag = "TXXX=" + std::string(comm);
+            int res = id3tag_set_fieldvalue(encoder, tag.c_str());
+            if (res != 0)
+                std::cout << "wasn't able to set user tag (" << comm << ")" << std::endl;
+        }
+    }
+}
+
+bool FLACtoMP3::tryKnownTag(std::string_view source) {
+    for (const std::pair<const std::string, const std::string>& pair : knownTags) {
+        if (source.find(pair.first) == 0) {
+            std::string tag = pair.second + std::string(source.substr(pair.first.size()));
+            int res = id3tag_set_fieldvalue(encoder, tag.c_str());
+            if (res != 0)
+                std::cout << "wasn't able to set tag (" << source << ")" << std::endl;
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+bool FLACtoMP3::decodeFrame(const int32_t * const buffer[], uint32_t size) {
+    if (!outputInitilized) {
+        bool success = initializeOutput();
+        if (!success)
+            return false;
+    }
+
     for (size_t i = 0; i < size; ++i) {
         pcm[2 * pcmCounter] = (int16_t)buffer[0][i];
         pcm[2 * pcmCounter + 1] = (int16_t)buffer[1][i];
@@ -82,23 +185,38 @@ void FLACtoMP3::decodeFrame(const int32_t * const buffer[], uint32_t size) {
     }
 
     if (pcmCounter == pcmSize)
-        flush();
+        return flush();
+
+    return true;
 }
 
-void FLACtoMP3::flush() {
+bool FLACtoMP3::flush() {
     int nwrite = lame_encode_buffer_interleaved(
         encoder,
         pcm,
         pcmCounter,
-        mp3,
-        pcmSize
+        outputBuffer,
+        pcmSize * 2
     );
-    output.write((char*)mp3, nwrite);
+    int actuallyWritten = fwrite((char*)outputBuffer, nwrite, 1, output);
     pcmCounter = 0;
+    return actuallyWritten == 1;
 }
 
 void FLACtoMP3::metadata(const FLAC__StreamDecoder* decoder, const FLAC__StreamMetadata* metadata, void* client_data) {
+    (void)(decoder);
+    FLACtoMP3* self = static_cast<FLACtoMP3*>(client_data);
 
+    switch (metadata->type) {
+        case FLAC__METADATA_TYPE_STREAMINFO:
+            self->processInfo(metadata->data.stream_info);
+            break;
+        case FLAC__METADATA_TYPE_VORBIS_COMMENT:
+            self->processTags(metadata->data.vorbis_comment);
+            break;
+        default:
+            break;
+    }
 }
 
 FLAC__StreamDecoderWriteStatus FLACtoMP3::write(
@@ -106,10 +224,8 @@ FLAC__StreamDecoderWriteStatus FLACtoMP3::write(
     const FLAC__Frame* frame,
     const FLAC__int32 * const buffer[],
     void* client_data
-){
-    FLACtoMP3* self = static_cast<FLACtoMP3*>(client_data);
-    self->decodeFrame(buffer, frame->header.blocksize);
-
+) {
+    (void)(decoder);
     // if (decoded->totalSamples == 0) {
     //     std::cout << "ERROR: this example only works for FLAC files that have a total_samples count in STREAMINFO" << std::endl;
     //     return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
@@ -131,17 +247,13 @@ FLAC__StreamDecoderWriteStatus FLACtoMP3::write(
         return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
     }
 
-    // /* write WAVE header before we write the first frame */
-    // if (frame->header.number.sample_number == 0)
-    //     decoded->writeWaveHeader();
-    //
-    // /* write decoded PCM samples */
-    // for (size_t i = 0; i < frame->header.blocksize; i++) {
-    //     decoded->write((uint16_t)buffer[0][i]);
-    //     decoded->write((uint16_t)buffer[1][i]);
-    // }
+    FLACtoMP3* self = static_cast<FLACtoMP3*>(client_data);
+    bool result = self->decodeFrame(buffer, frame->header.blocksize);
 
-    return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
+    if (result)
+        return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
+    else
+        return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
 }
 
 void FLACtoMP3::error(const FLAC__StreamDecoder* decoder, FLAC__StreamDecoderErrorStatus status, void* client_data) {
