@@ -14,6 +14,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
 find_package(LAME REQUIRED)
 find_package(FLAC REQUIRED)
+find_package(JPEG REQUIRED)
 
 add_executable(mlc
     main.cpp
@@ -25,6 +26,7 @@ add_executable(mlc
 target_link_libraries(mlc
     ${LAME_LIBRARIES}
     FLAC
+    JPEG::JPEG
 )
 
 install(TARGETS mlc RUNTIME DESTINATION bin)
