@@ -21,6 +21,7 @@ add_executable(mlc
     help.cpp
     decoded.cpp
     flactomp3.cpp
+    collection.cpp
 )
 
 target_link_libraries(mlc

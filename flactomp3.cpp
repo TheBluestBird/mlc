@@ -45,13 +45,12 @@ FLACtoMP3::~FLACtoMP3() {
     FLAC__stream_decoder_delete(decoder);
 }
 
-void FLACtoMP3::run() {
+bool FLACtoMP3::run() {
     FLAC__bool ok = FLAC__stream_decoder_process_until_end_of_stream(decoder);
-    std::cout << "decoding: ";
     if (ok) {
-        std::cout << "succeeded";
+        if (pcmCounter > 0)
+            flush();
 
-        flush();
         int nwrite = lame_encode_flush(encoder, outputBuffer, pcmSize * 2);
         fwrite((char*)outputBuffer, nwrite, 1, output);
 
@@ -77,12 +76,9 @@ void FLACtoMP3::run() {
 
             fwrite((char*)outputBuffer, vbrTagSize, 1, output);
         }
-    } else {
-        std::cout << "FAILED";
     }
 
-    std::cout << std::endl;
-    std::cout << "   state: " << FLAC__StreamDecoderStateString[FLAC__stream_decoder_get_state(decoder)] << std::endl;
+    // std::cout << "   state: " << FLAC__StreamDecoderStateString[FLAC__stream_decoder_get_state(decoder)] << std::endl;
 
     if (outputInitilized) {
         fclose(output);
@@ -96,7 +92,11 @@ void FLACtoMP3::run() {
         pcmSize = 0;
         flacMaxBlockSize = 0;
         outputBufferSize = 0;
+
+        return ok;
     }
+
+    return false;
 }
 
 void FLACtoMP3::setInputFile(const std::string& path) {
@@ -230,7 +230,6 @@ void FLACtoMP3::processPicture(const FLAC__StreamMetadata_Picture& picture) {
 }
 
 bool FLACtoMP3::scaleJPEG(const FLAC__StreamMetadata_Picture& picture) {
-    // Variables for the decompressor itself
     struct jpeg_decompress_struct dinfo;
     struct jpeg_error_mgr derr;
 
@@ -243,7 +242,7 @@ bool FLACtoMP3::scaleJPEG(const FLAC__StreamMetadata_Picture& picture) {
         std::cout << "error reading jpeg header" << std::endl;
         return false;
     }
-    uint64_t mem_size = LAME_MAXALBUMART - 1024 * 16;
+    uint64_t mem_size = LAME_MAXALBUMART;
     uint8_t *mem = new uint8_t[mem_size];
 
     dinfo.scale_num = 2;        //need to tune it, feels like 500 by 500 is a good size
@@ -267,23 +266,19 @@ bool FLACtoMP3::scaleJPEG(const FLAC__StreamMetadata_Picture& picture) {
     uint32_t rowSize = dinfo.image_width * dinfo.output_components;
     uint8_t* row = new uint8_t[rowSize];
 
-	while (dinfo.output_scanline < dinfo.output_height) {
-		jpeg_read_scanlines(&dinfo, &row, 1);
+    while (dinfo.output_scanline < dinfo.output_height) {
+        jpeg_read_scanlines(&dinfo, &row, 1);
         jpeg_write_scanlines(&cinfo, &row, 1);
-	}
-	jpeg_finish_decompress(&dinfo);
-	jpeg_destroy_decompress(&dinfo);
+    }
+    jpeg_finish_decompress(&dinfo);
+    jpeg_destroy_decompress(&dinfo);
 
     jpeg_finish_compress(&cinfo);
     jpeg_destroy_compress(&cinfo);
 
-	// And free the input buffer
-	delete[] row;
+    delete[] row;
 
-    std::cout << "writing " << mem_size << std::endl;
     int result = id3tag_set_albumart(encoder, (const char*)mem, mem_size);
-
-    std::cout << "deallocating" << std::endl;
     delete[] mem;
 
     return result == 0;
@@ -353,7 +348,7 @@ bool FLACtoMP3::flush() {
         return actuallyWritten == 1;
     } else {
         if (nwrite == 0) {
-            std::cout << "encoding flush encoded 0 bytes, skipping write" << std::endl;
+            //std::cout << "encoding flush encoded 0 bytes, skipping write" << std::endl;
             return true;
         } else {
             std::cout << "encoding flush failed, error: " << nwrite << std::endl;

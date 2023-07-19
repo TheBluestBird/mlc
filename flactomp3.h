@@ -17,7 +17,7 @@ public:
 
     void setInputFile(const std::string& path);
     void setOutputFile(const std::string& path);
-    void run();
+    bool run();
 
 private:
     void processTags(const FLAC__StreamMetadata_VorbisComment& tags);
