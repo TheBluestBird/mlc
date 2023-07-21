@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 project(
     mlc
-    VERSION 0.0.1
+    VERSION 1.0.1
     DESCRIPTION "Media Library Compiler: rips your media library to a lossy compilation"
     LANGUAGES CXX
 )
@@ -22,6 +22,7 @@ add_executable(mlc
     decoded.cpp
     flactomp3.cpp
     collection.cpp
+    taskmanager.cpp
 )
 
 target_link_libraries(mlc

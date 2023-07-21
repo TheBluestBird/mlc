@@ -173,13 +173,17 @@ void FLACtoMP3::processInfo(const FLAC__StreamMetadata_StreamInfo& info) {
 }
 
 void FLACtoMP3::processTags(const FLAC__StreamMetadata_VorbisComment& tags) {
-    for (FLAC__uint32 i = 0; i < tags.num_comments; ++i) {
-        const FLAC__StreamMetadata_VorbisComment_Entry& entry = tags.comments[i];
+    bool artistSet = false;                                                         //in vorbis comment there could be more then 1 artist tag
+    for (FLAC__uint32 i = 0; i < tags.num_comments; ++i) {                          //usualy it's about guested and fetured artists
+        const FLAC__StreamMetadata_VorbisComment_Entry& entry = tags.comments[i];   //gonna keep only the first one for now
         std::string_view comm((const char*)entry.entry);
         if (comm.find(title) == 0) {
             id3tag_set_title(encoder, comm.substr(title.size()).data());
         } else if (comm.find(artist) == 0) {
-            id3tag_set_artist(encoder, comm.substr(artist.size()).data());
+            if (!artistSet) {
+                id3tag_set_artist(encoder, comm.substr(artist.size()).data());
+                artistSet = true;
+            }
         } else if (comm.find(album) == 0) {
             id3tag_set_album(encoder, comm.substr(album.size()).data());
         } else if (comm.find(comment) == 0) {

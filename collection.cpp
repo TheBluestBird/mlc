@@ -1,22 +1,24 @@
 #include "collection.h"
 
+#include "taskmanager.h"
+
 namespace fs = std::filesystem;
 
 static const std::string flac(".flac");
 
-Collection::Collection(const std::string& path) :
+Collection::Collection(const std::string& path, TaskManager* tm) :
     path(fs::canonical(path)),
     countMusical(0),
     counted(false),
-    convertedSoFar(0)
+    taskManager(tm)
 {
 }
 
-Collection::Collection(const std::filesystem::path& path):
+Collection::Collection(const std::filesystem::path& path, TaskManager* tm):
     path(fs::canonical(path)),
     countMusical(0),
     counted(false),
-    convertedSoFar(0)
+    taskManager(tm)
 {
 }
 
@@ -60,12 +62,11 @@ uint32_t Collection::countMusicFiles() const {
     return countMusical;
 }
 
-void Collection::convert(const std::string& outPath, std::function<void()> progress) {
-    convertedSoFar = 0;
+void Collection::convert(const std::string& outPath) {
+    if (taskManager == nullptr)
+        throw 6;
+
     fs::path out = fs::absolute(outPath);
-    if (progress == nullptr) {
-        progress = std::bind(&Collection::prg, this);
-    }
 
     fs::create_directories(out);
     out = fs::canonical(outPath);
@@ -76,22 +77,18 @@ void Collection::convert(const std::string& outPath, std::function<void()> progr
                 fs::path dstPath = out / sourcePath.filename();
                 if (isMusic(sourcePath)) {
                     dstPath.replace_extension(".mp3");
-                    FLACtoMP3 convertor;
-                    convertor.setInputFile(sourcePath);
-                    convertor.setOutputFile(dstPath);
-                    convertor.run();
-                    progress();
+                    taskManager->queueJob(sourcePath, dstPath);
                 } else {
-                    fs::copy_file(sourcePath, dstPath);
+                    fs::copy_file(sourcePath, dstPath, fs::copy_options::overwrite_existing);
                 }
                 //std::cout << sourcePath << " => " << dstPath << std::endl;
             }   break;
             case fs::file_type::directory: {
                 fs::path sourcePath = entry.path();
-                Collection collection(sourcePath);
+                Collection collection(sourcePath, taskManager);
                 fs::path::iterator itr = sourcePath.end();
                 --itr;
-                collection.convert(std::string(out / *itr), progress);
+                collection.convert(std::string(out / *itr));
             }   break;
             default:
                 break;
@@ -101,9 +98,5 @@ void Collection::convert(const std::string& outPath, std::function<void()> progr
 
 bool Collection::isMusic(const std::filesystem::path& path) {
     return path.extension() == flac;    //I know, it's primitive yet, but it's the fastest
-}
-
-void Collection::prg() const {
-    std::cout << "\r" << ++convertedSoFar << "/" << countMusicFiles() << std::flush;
 }
 
