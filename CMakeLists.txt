@@ -23,6 +23,7 @@ add_executable(mlc
     flactomp3.cpp
     collection.cpp
     taskmanager.cpp
+    loggable.cpp
 )
 
 target_link_libraries(mlc

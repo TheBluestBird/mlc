@@ -6,13 +6,16 @@
 
 #include <string>
 #include <string_view>
-#include <iostream>
+#include <codecvt>
+#include <locale>
 #include <map>
 #include <stdio.h>
 
-class FLACtoMP3 {
+#include "loggable.h"
+
+class FLACtoMP3 : public Loggable {
 public:
-    FLACtoMP3(uint8_t size = 4);
+    FLACtoMP3(Severity severity = info, uint8_t size = 4);
     ~FLACtoMP3();
 
     void setInputFile(const std::string& path);
@@ -28,6 +31,12 @@ private:
     bool initializeOutput();
     bool tryKnownTag(std::string_view source);
     bool scaleJPEG(const FLAC__StreamMetadata_Picture& picture);
+
+    void setTagTitle(const std::string_view& title);
+    void setTagAlbum(const std::string_view& album);
+    void setTagArtist(const std::string_view& artist);
+
+    int setTagUSC2(const std::string_view& field, const std::string_view& value);
 
     static void error(const FLAC__StreamDecoder *decoder, FLAC__StreamDecoderErrorStatus status, void *client_data);
     static void metadata(const FLAC__StreamDecoder *decoder, const FLAC__StreamMetadata *metadata, void *client_data);
@@ -56,4 +65,5 @@ private:
     uint32_t outputBufferSize;
     bool outputInitilized;
     bool downscaleAlbumArt;
+    std::wstring_convert<std::codecvt_utf8<char16_t>, char16_t> usc2convertor;
 };

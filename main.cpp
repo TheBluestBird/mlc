@@ -17,12 +17,12 @@ int main(int argc, char **argv) {
     }
 
     const std::string firstArgument(argv[1]);
-    const std::string secondArgument(argv[2]);
-
     if (firstArgument == "--help") {
         printHelp();
         return 0;
     }
+
+    const std::string secondArgument(argv[2]);
 
     TaskManager taskManager;
     taskManager.start();
@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
     taskManager.wait();
     std::chrono::time_point end = std::chrono::system_clock::now();
     std::chrono::duration<double> seconds = end - start;
-    std::cout << std::endl << "took " << seconds.count() << std::endl;
+    std::cout << std::endl << "Encoding is done, it took " << seconds.count() << " seconds in total, enjoy!" << std::endl;
 
     taskManager.stop();
 

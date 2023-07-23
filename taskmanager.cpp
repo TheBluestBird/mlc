@@ -2,11 +2,32 @@
 
 #include "flactomp3.h"
 
+constexpr const std::array<std::string_view, Loggable::fatal + 1> logSettings({
+    /*debug*/   "\e[90m",
+    /*info*/    "\e[32m",
+    /*minor*/   "\e[34m",
+    /*major*/   "\e[94m",
+    /*warning*/ "\e[33m",
+    /*error*/   "\e[31m",
+    /*fatal*/   "\e[91m"
+});
+
+constexpr const std::array<std::string_view, Loggable::fatal + 1> logHeaders({
+    /*debug*/   "DEBUG: ",
+    /*info*/    "INFO: ",
+    /*minor*/   "MINOR: ",
+    /*major*/   "MAJOR: ",
+    /*warning*/ "WARNING: ",
+    /*error*/   "ERROR: ",
+    /*fatal*/   "FATAL: "
+});
+
 TaskManager::TaskManager():
     busyThreads(0),
     maxTasks(0),
     completeTasks(0),
     terminate(false),
+    printMutex(),
     queueMutex(),
     busyMutex(),
     loopConditional(),
@@ -62,9 +83,9 @@ void TaskManager::loop() {
             jobs.pop();
         }
 
-        job(pair.first, pair.second);
+        JobResult result = job(pair.first, pair.second);
         ++completeTasks;
-        printProgress();
+        printProgress(result, pair.first, pair.second);
         --busyThreads;
         waitConditional.notify_all();
     }
@@ -96,13 +117,38 @@ void TaskManager::wait() {
     waitConditional.wait(lock, boundWaitCondition);
 }
 
-bool TaskManager::job(const std::string& source, const std::string& destination) {
+TaskManager::JobResult TaskManager::job(const std::string& source, const std::string& destination) {
     FLACtoMP3 convertor;
     convertor.setInputFile(source);
     convertor.setOutputFile(destination);
-    return convertor.run();
+    bool result = convertor.run();
+    return {result, convertor.getHistory()};
 }
 
 void TaskManager::printProgress() const {
+    std::unique_lock<std::mutex> lock(printMutex);
     std::cout << "\r" << completeTasks << "/" << maxTasks << std::flush;
+}
+
+void TaskManager::printProgress(const TaskManager::JobResult& result, const std::string& source, const std::string& destination) const {
+    std::unique_lock<std::mutex> lock(printMutex);
+    if (result.first) {
+        if (result.second.size() > 0) {
+            std::cout << "\r\e[1m" << "Encoding complete but there are messages about it" << "\e[0m" << std::endl;
+            printLog(result, source, destination);
+        }
+    } else {
+        std::cout << "\r\e[1m" << "Encoding failed!" << "\e[0m" << std::endl;
+        printLog(result, source, destination);
+    }
+    std::cout << "\r" << completeTasks << "/" << maxTasks << std::flush;
+}
+
+void TaskManager::printLog(const TaskManager::JobResult& result, const std::string& source, const std::string& destination) {
+    std::cout << "Source: \t" << source << std::endl;
+    std::cout << "Destination: \t" << destination << std::endl;
+    for (const Loggable::Message& msg : result.second) {
+        std::cout << "\t" << logSettings[msg.first] << "\e[1m" << logHeaders[msg.first] << "\e[22m" << msg.second << std::endl;
+    }
+    std::cout << "\e[0m" << std::endl;
 }

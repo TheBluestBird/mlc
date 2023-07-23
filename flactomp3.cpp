@@ -1,16 +1,21 @@
 #include "flactomp3.h"
 
+#include <cmath>
+
 constexpr uint16_t flacDefaultMaxBlockSize = 4096;
+constexpr uint16_t id3v1TagSize = 128;
+// constexpr std::wstring_view BOM ({(0xFEFF}); //one day...
 
-static const std::string_view title ("TITLE=");
-static const std::string_view artist ("ARTIST=");
-static const std::string_view album ("ALBUM=");
-static const std::string_view comment ("COMMENT=");
-static const std::string_view genre ("GENRE=");
-static const std::string_view track ("TRACKNUMBER=");
-static const std::string_view date ("DATE=");
+constexpr std::string_view title ("TITLE=");
+constexpr std::string_view artist ("ARTIST=");
+constexpr std::string_view album ("ALBUM=");
+constexpr std::string_view comment ("COMMENT=");
+constexpr std::string_view genre ("GENRE=");
+constexpr std::string_view track ("TRACKNUMBER=");
+constexpr std::string_view date ("DATE=");
 
-static const std::string_view jpeg ("image/jpeg");
+constexpr std::string_view jpeg ("image/jpeg");
+
 
 static const std::map<std::string, const std::string> knownTags {
     {"ALBUMARTIST=", "TPE2="},
@@ -18,10 +23,12 @@ static const std::map<std::string, const std::string> knownTags {
     {"LENGTH=", "TLEN="},
     {"ISRC=", "TSRC="},
     {"DISCNUMBER=", "TPOS="},
-    {"BPM=", "TBPM="}
+    {"BPM=", "TBPM="},
+    {"LYRICS=", "USLT="}    //but it's not supported in LAME
 };
 
-FLACtoMP3::FLACtoMP3(uint8_t size) :
+FLACtoMP3::FLACtoMP3(Severity severity, uint8_t size) :
+    Loggable(severity),
     inPath(),
     outPath(),
     decoder(FLAC__stream_decoder_new()),
@@ -36,7 +43,8 @@ FLACtoMP3::FLACtoMP3(uint8_t size) :
     outputBuffer(nullptr),
     outputBufferSize(0),
     outputInitilized(false),
-    downscaleAlbumArt(false)
+    downscaleAlbumArt(false),
+    usc2convertor()
 {
 }
 
@@ -47,6 +55,7 @@ FLACtoMP3::~FLACtoMP3() {
 
 bool FLACtoMP3::run() {
     FLAC__bool ok = FLAC__stream_decoder_process_until_end_of_stream(decoder);
+    uint32_t fileSize;
     if (ok) {
         if (pcmCounter > 0)
             flush();
@@ -55,24 +64,26 @@ bool FLACtoMP3::run() {
         fwrite((char*)outputBuffer, nwrite, 1, output);
 
         if (downscaleAlbumArt) {
+            fileSize = ftell(output);
             lame_mp3_tags_fid(encoder, output);
         } else {
-            int tag1Size = lame_get_id3v1_tag(encoder, outputBuffer, 128);
-            if (tag1Size > 128)
-                std::cout << std::endl << "couldn't write id3v1 tag";
+            int tag1Size = lame_get_id3v1_tag(encoder, outputBuffer, id3v1TagSize);
+            if (tag1Size > id3v1TagSize)
+                log(warning, "couldn't write id3v1 tag");
             else
                 fwrite((char*)outputBuffer, tag1Size, 1, output);
 
+            fileSize = ftell(output);
             fseek(output, 0, SEEK_SET);
             int tag2Size = lame_get_id3v2_tag(encoder, outputBuffer, outputBufferSize);
             if (tag2Size > outputBufferSize) {
-                std::cout << std::endl << "couldn't write id3v1 tag";
+                log(Loggable::error, "couldn't write id3v2 tag");
             } else
                 fwrite((char*)outputBuffer, tag2Size, 1, output);
 
             int vbrTagSize = lame_get_lametag_frame(encoder, outputBuffer, outputBufferSize);
             if (vbrTagSize > outputBufferSize)
-                std::cout << std::endl << "couldn't write vbr tag";
+                log(Loggable::error, "couldn't write vbr tag");
 
             fwrite((char*)outputBuffer, vbrTagSize, 1, output);
         }
@@ -92,6 +103,12 @@ bool FLACtoMP3::run() {
         pcmSize = 0;
         flacMaxBlockSize = 0;
         outputBufferSize = 0;
+        if (ok) {
+            float MBytes = (float)fileSize / 1024 / 1024;
+            std::string strMBytes = std::to_string(MBytes);
+            strMBytes = strMBytes.substr(0, strMBytes.find(".") + 3) + " MiB";
+            log(info, "resulting file size: " + strMBytes);
+        }
 
         return ok;
     }
@@ -130,13 +147,13 @@ bool FLACtoMP3::initializeOutput() {
     output = fopen(outPath.c_str(), "w+b");
     if (output == 0) {
         output = nullptr;
-        std::cout << "Error opening file " << outPath << std::endl;
+        log(fatal, "Error opening file " + outPath);
         return false;
     }
 
     int ret = lame_init_params(encoder);
     if (ret < 0) {
-        std::cout << "Error occurred during parameters initializing. Code = " << ret << std::endl;
+        log(fatal, "Error initializing LAME parameters. Code = " + std::to_string(ret));
         fclose(output);
         output = nullptr;
         return false;
@@ -169,7 +186,9 @@ void FLACtoMP3::processInfo(const FLAC__StreamMetadata_StreamInfo& info) {
     lame_set_in_samplerate(encoder, info.sample_rate);
     lame_set_num_channels(encoder, info.channels);
     flacMaxBlockSize = info.max_blocksize;
-    //std::cout << "bits per sample: " << info.bits_per_sample << std::endl;;
+    log(Loggable::info, "sample rate: " + std::to_string(info.sample_rate));
+    log(Loggable::info, "channels: " + std::to_string(info.channels));
+    log(Loggable::info, "bits per sample: " + std::to_string(info.bits_per_sample));
 }
 
 void FLACtoMP3::processTags(const FLAC__StreamMetadata_VorbisComment& tags) {
@@ -178,14 +197,16 @@ void FLACtoMP3::processTags(const FLAC__StreamMetadata_VorbisComment& tags) {
         const FLAC__StreamMetadata_VorbisComment_Entry& entry = tags.comments[i];   //gonna keep only the first one for now
         std::string_view comm((const char*)entry.entry);
         if (comm.find(title) == 0) {
-            id3tag_set_title(encoder, comm.substr(title.size()).data());
+            setTagTitle(comm.substr(title.size()));
         } else if (comm.find(artist) == 0) {
             if (!artistSet) {
-                id3tag_set_artist(encoder, comm.substr(artist.size()).data());
+                setTagArtist(comm.substr(artist.size()));
                 artistSet = true;
+            } else {
+                log(minor, "more than one artist tag, ignoring " + std::string(comm.substr(artist.size())));
             }
         } else if (comm.find(album) == 0) {
-            id3tag_set_album(encoder, comm.substr(album.size()).data());
+            setTagAlbum(comm.substr(album.size()));
         } else if (comm.find(comment) == 0) {
             id3tag_set_comment(encoder, comm.substr(comment.size()).data());
         } else if (comm.find(genre) == 0) {
@@ -194,13 +215,13 @@ void FLACtoMP3::processTags(const FLAC__StreamMetadata_VorbisComment& tags) {
             id3tag_set_track(encoder, comm.substr(track.size()).data());
         } else if (comm.find(date) == 0) {
             std::string_view fullDate = comm.substr(date.size());
-            if (fullDate.size() == 10) {
+            if (fullDate.size() == 10) {                                            //1999-11-11    kind of string
                 std::string_view month = fullDate.substr(5, std::size_t(2));
                 std::string_view day = fullDate.substr(8);
-                std::string md = "TDAT=" + std::string(month) + std::string(day);
+                std::string md = "TDAT=" + std::string(day) + std::string(month);
                 int res = id3tag_set_fieldvalue(encoder, md.c_str());
                 if (res != 0)
-                    std::cout << "wasn't able to set the date tag (" << md << ")" << std::endl;
+                    log(warning, "wasn't able to set the date tag (" + md + ")");
 
                 fullDate = fullDate.substr(0, 4);   //year;
             }
@@ -209,27 +230,25 @@ void FLACtoMP3::processTags(const FLAC__StreamMetadata_VorbisComment& tags) {
             std::string tag = "TXXX=" + std::string(comm);
             int res = id3tag_set_fieldvalue(encoder, tag.c_str());
             if (res != 0)
-                std::cout << "wasn't able to set user tag (" << comm << ")" << std::endl;
+                log(warning, "wasn't able to set user tag (" + tag + ")");
         }
     }
 }
 
 void FLACtoMP3::processPicture(const FLAC__StreamMetadata_Picture& picture) {
     if (downscaleAlbumArt && picture.data_length > LAME_MAXALBUMART) {
-        std::cout << "embeded picture is too big (" << picture.data_length << " bytes) " << std::endl;
-        std::cout << "mime type is " << picture.mime_type << std::endl;
+        log(info, "embeded album art is too big (" + std::to_string(picture.data_length) + " bytes), rescaling");
+        log(debug, "mime type is " + std::string(picture.mime_type));
         if (picture.mime_type == jpeg) {
-            if (scaleJPEG(picture)) {
-                std::cout << "successfully scaled album art" << std::endl;
-            } else {
-                std::cout << "failed to album art" << std::endl;
-            }
+            if (scaleJPEG(picture))
+                log(debug, "successfully rescaled album art");
+            else
+                log(warning, "failed to rescale album art");
         }
     } else {
         int result = id3tag_set_albumart(encoder, (const char*)picture.data, picture.data_length);
-        if (result != 0) {
-            std::cout << "couldn't set album art tag, errcode: " << result << std::endl;
-        }
+        if (result != 0)
+            log(warning, "couldn't set album art tag, errcode: " + std::to_string(result));
     }
 }
 
@@ -243,11 +262,11 @@ bool FLACtoMP3::scaleJPEG(const FLAC__StreamMetadata_Picture& picture) {
     int rc = jpeg_read_header(&dinfo, TRUE);
 
     if (rc != 1) {
-        std::cout << "error reading jpeg header" << std::endl;
+        log(Loggable::error, "error reading jpeg header");
         return false;
     }
-    uint64_t mem_size = LAME_MAXALBUMART;
-    uint8_t *mem = new uint8_t[mem_size];
+    uint64_t mem_size = 0;
+    uint8_t *mem = new uint8_t[LAME_MAXALBUMART + 1024 * 4];    //I allocate a little bit more not to corrupt someone else's the memory
 
     dinfo.scale_num = 2;        //need to tune it, feels like 500 by 500 is a good size
     dinfo.scale_denom = 3;
@@ -273,6 +292,12 @@ bool FLACtoMP3::scaleJPEG(const FLAC__StreamMetadata_Picture& picture) {
     while (dinfo.output_scanline < dinfo.output_height) {
         jpeg_read_scanlines(&dinfo, &row, 1);
         jpeg_write_scanlines(&cinfo, &row, 1);
+
+        if (mem_size > LAME_MAXALBUMART) {
+            delete[] mem;
+            log(Loggable::error, "resized album art exceeded reserved buffer size, stopping before memory corrution");
+            return false;
+        }
     }
     jpeg_finish_decompress(&dinfo);
     jpeg_destroy_decompress(&dinfo);
@@ -291,10 +316,24 @@ bool FLACtoMP3::scaleJPEG(const FLAC__StreamMetadata_Picture& picture) {
 bool FLACtoMP3::tryKnownTag(std::string_view source) {
     for (const std::pair<const std::string, const std::string>& pair : knownTags) {
         if (source.find(pair.first) == 0) {
-            std::string tag = pair.second + std::string(source.substr(pair.first.size()));
-            int res = id3tag_set_fieldvalue(encoder, tag.c_str());
-            if (res != 0)
-                std::cout << "wasn't able to set tag (" << source << ")" << std::endl;
+            if (pair.first == "LYRICS=") {
+                log(warning, "lyrics tag was not transfered, it is not supported currently");
+            } else if (pair.first == "BPM=") {
+                float bpm = std::atof(source.substr(pair.first.size()).data());
+                bpm = std::round(bpm);                                          //id3 bpm must be integer
+                int result = id3tag_set_fieldvalue(encoder, std::string(pair.second + std::to_string((int)bpm)).c_str());
+                if (result != 0)
+                    log(warning, "wasn't able to set BPM tag. Code = " + std::to_string(result));
+            } else if (pair.first == "ALBUMARTIST=") {
+                int res = setTagUSC2("TPE2", source.substr(pair.first.size()));
+                if (res != 0)
+                    log(warning, "wasn't able to album artist tag. Code = " + std::to_string(res));
+            } else {
+                std::string tag = pair.second + std::string(source.substr(pair.first.size()));
+                int res = id3tag_set_fieldvalue(encoder, tag.c_str());
+                if (res != 0)
+                    log(warning, "wasn't able to set tag (" + std::string(source) + "). Code = " + std::to_string(res));
+            }
 
             return true;
         }
@@ -331,11 +370,11 @@ bool FLACtoMP3::flush() {
         outputBufferSize
     );
     while (nwrite == -1) {      //-1 is returned when there was not enough space in the given buffer
-        std::cout << outputBufferSize << " bytes in the output buffer wasn't enough" << std::endl;
+        log(major, std::to_string(outputBufferSize) + " bytes in the output buffer wasn't enough");;
         outputBufferSize = outputBufferSize * 2;
         delete[] outputBuffer;
         outputBuffer = new uint8_t[outputBufferSize];
-        std::cout << "allocating " << outputBufferSize << " bytes" << std::endl;
+        log(major, "allocating " + std::to_string(outputBufferSize) + " bytes");
 
         nwrite = lame_encode_buffer_interleaved(
             encoder,
@@ -352,10 +391,10 @@ bool FLACtoMP3::flush() {
         return actuallyWritten == 1;
     } else {
         if (nwrite == 0) {
-            //std::cout << "encoding flush encoded 0 bytes, skipping write" << std::endl;
+            log(minor, "encoding flush encoded 0 bytes, skipping write");
             return true;
         } else {
-            std::cout << "encoding flush failed, error: " << nwrite << std::endl;
+            log(fatal, "encoding flush failed. Code = : " + std::to_string(nwrite));
             return false;
         }
     }
@@ -391,20 +430,20 @@ FLAC__StreamDecoderWriteStatus FLACtoMP3::write(
     //     std::cout << "ERROR: this example only supports 16bit stereo streams" << std::endl;
     //     return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
     // }
+    FLACtoMP3* self = static_cast<FLACtoMP3*>(client_data);
     if (frame->header.channels != 2) {
-        std::cout << "ERROR: This frame contains " << frame->header.channels << " channels (should be 2)" << std::endl;
+        self->log(fatal, "ERROR: This frame contains " + std::to_string(frame->header.channels) + " channels (should be 2)");
         return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
     }
     if (buffer[0] == NULL) {
-        std::cout << "ERROR: buffer [0] is NULL" << std::endl;
+        self->log(fatal, "ERROR: buffer [0] is NULL");
         return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
     }
     if (buffer[1] == NULL) {
-        std::cout << "ERROR: buffer [1] is NULL" << std::endl;
+        self->log(fatal, "ERROR: buffer [1] is NULL");
         return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
     }
 
-    FLACtoMP3* self = static_cast<FLACtoMP3*>(client_data);
     bool result = self->decodeFrame(buffer, frame->header.blocksize);
 
     if (result)
@@ -414,6 +453,34 @@ FLAC__StreamDecoderWriteStatus FLACtoMP3::write(
 }
 
 void FLACtoMP3::error(const FLAC__StreamDecoder* decoder, FLAC__StreamDecoderErrorStatus status, void* client_data) {
-    (void)decoder, (void)client_data;
-    std::cout << "Got error callback: " << FLAC__StreamDecoderErrorStatusString[status] << std::endl;
+    (void)decoder;
+    FLACtoMP3* self = static_cast<FLACtoMP3*>(client_data);
+    std::string errText(FLAC__StreamDecoderErrorStatusString[status]);
+    self->log(Loggable::error, "Got error callback: " + errText);
+}
+
+void FLACtoMP3::setTagTitle(const std::string_view& title) {
+    id3tag_set_title(encoder, title.data());                //to set at least some possibly encoding broken id3v1 tag
+    int res = setTagUSC2("TIT2", title);
+    if (res != 0)
+        log(warning, "Couldn't set Title tag. Code = " + std::to_string(res));
+}
+
+void FLACtoMP3::setTagAlbum(const std::string_view& album) {
+    id3tag_set_album(encoder, album.data());                //to set at least some possibly encoding broken id3v1 tag
+    int res = setTagUSC2("TALB", album);
+    if (res != 0)
+        log(warning, "Couldn't set Album tag. Code = " + std::to_string(res));
+}
+
+void FLACtoMP3::setTagArtist(const std::string_view& artist) {
+    id3tag_set_artist(encoder, artist.data());                //to set at least some possibly encoding broken id3v1 tag
+    int res = setTagUSC2("TPE1", artist);
+    if (res != 0)
+        log(warning, "Couldn't set Artist tag. Code = " + std::to_string(res));
+}
+
+int FLACtoMP3::setTagUSC2(const std::string_view& field, const std::string_view& value) {
+    std::u16string utf16 = std::u16string({0xFEFF}) + usc2convertor.from_bytes(value.data());
+    return id3tag_set_textinfo_utf16(encoder, field.data(), (unsigned short*)utf16.c_str());
 }
