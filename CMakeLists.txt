@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 project(
     mlc
-    VERSION 1.0.1
+    VERSION 1.2.0
     DESCRIPTION "Media Library Compiler: rips your media library to a lossy compilation"
     LANGUAGES CXX
 )
@@ -12,9 +12,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
-find_package(LAME REQUIRED)
+find_package(PkgConfig REQUIRED)
 find_package(FLAC REQUIRED)
 find_package(JPEG REQUIRED)
+
+pkg_check_modules(LAME REQUIRED IMPORTED_TARGET lame)
+pkg_check_modules(TAGLIB REQUIRED IMPORTED_TARGET taglib)
 
 add_executable(mlc
     main.cpp
@@ -27,9 +30,10 @@ add_executable(mlc
 )
 
 target_link_libraries(mlc
-    ${LAME_LIBRARIES}
-    FLAC
+    FLAC::FLAC
+    PkgConfig::LAME
     JPEG::JPEG
+    PkgConfig::TAGLIB
 )
 
 install(TARGETS mlc RUNTIME DESTINATION bin)

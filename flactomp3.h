@@ -1,13 +1,12 @@
 #pragma once
 
-#include "FLAC/stream_decoder.h"
-#include <lame/lame.h>
+#include <FLAC/stream_decoder.h>
+#include <lame.h>
 #include <jpeglib.h>
+#include <id3v2tag.h>
 
 #include <string>
 #include <string_view>
-#include <codecvt>
-#include <locale>
 #include <map>
 #include <stdio.h>
 
@@ -29,14 +28,8 @@ private:
     bool decodeFrame(const int32_t * const buffer[], uint32_t size);
     bool flush();
     bool initializeOutput();
-    bool tryKnownTag(std::string_view source);
     bool scaleJPEG(const FLAC__StreamMetadata_Picture& picture);
-
-    void setTagTitle(const std::string_view& title);
-    void setTagAlbum(const std::string_view& album);
-    void setTagArtist(const std::string_view& artist);
-
-    int setTagUSC2(const std::string_view& field, const std::string_view& value);
+    void attachPictureFrame(const FLAC__StreamMetadata_Picture& picture, const TagLib::ByteVector& bytes);
 
     static void error(const FLAC__StreamDecoder *decoder, FLAC__StreamDecoderErrorStatus status, void *client_data);
     static void metadata(const FLAC__StreamDecoder *decoder, const FLAC__StreamMetadata *metadata, void *client_data);
@@ -65,5 +58,5 @@ private:
     uint32_t outputBufferSize;
     bool outputInitilized;
     bool downscaleAlbumArt;
-    std::wstring_convert<std::codecvt_utf8<char16_t>, char16_t> usc2convertor;
+    TagLib::ID3v2::Tag id3v2tag;
 };

@@ -1,5 +1,8 @@
 # Changelog
 
+## MLC 1.2.0 (UNRELEASED)
+- Better way of handling tags using TagLib
+
 ## MLC 1.1.0 (July 23, 2023)
 - New logging system
 - Artist, Album artist, Album and Title are now utf16 encoded, should fix broten titles

@@ -2,30 +2,12 @@
 
 #include <cmath>
 
-constexpr uint16_t flacDefaultMaxBlockSize = 4096;
-constexpr uint16_t id3v1TagSize = 128;
-// constexpr std::wstring_view BOM ({(0xFEFF}); //one day...
+#include <tpropertymap.h>
+#include <attachedpictureframe.h>
 
-constexpr std::string_view title ("TITLE=");
-constexpr std::string_view artist ("ARTIST=");
-constexpr std::string_view album ("ALBUM=");
-constexpr std::string_view comment ("COMMENT=");
-constexpr std::string_view genre ("GENRE=");
-constexpr std::string_view track ("TRACKNUMBER=");
-constexpr std::string_view date ("DATE=");
+constexpr uint16_t flacDefaultMaxBlockSize = 4096;
 
 constexpr std::string_view jpeg ("image/jpeg");
-
-
-static const std::map<std::string, const std::string> knownTags {
-    {"ALBUMARTIST=", "TPE2="},
-    {"PUBLISHER=", "TPUB="},
-    {"LENGTH=", "TLEN="},
-    {"ISRC=", "TSRC="},
-    {"DISCNUMBER=", "TPOS="},
-    {"BPM=", "TBPM="},
-    {"LYRICS=", "USLT="}    //but it's not supported in LAME
-};
 
 FLACtoMP3::FLACtoMP3(Severity severity, uint8_t size) :
     Loggable(severity),
@@ -44,7 +26,7 @@ FLACtoMP3::FLACtoMP3(Severity severity, uint8_t size) :
     outputBufferSize(0),
     outputInitilized(false),
     downscaleAlbumArt(false),
-    usc2convertor()
+    id3v2tag()
 {
 }
 
@@ -63,30 +45,9 @@ bool FLACtoMP3::run() {
         int nwrite = lame_encode_flush(encoder, outputBuffer, pcmSize * 2);
         fwrite((char*)outputBuffer, nwrite, 1, output);
 
-        if (downscaleAlbumArt) {
-            fileSize = ftell(output);
-            lame_mp3_tags_fid(encoder, output);
-        } else {
-            int tag1Size = lame_get_id3v1_tag(encoder, outputBuffer, id3v1TagSize);
-            if (tag1Size > id3v1TagSize)
-                log(warning, "couldn't write id3v1 tag");
-            else
-                fwrite((char*)outputBuffer, tag1Size, 1, output);
 
-            fileSize = ftell(output);
-            fseek(output, 0, SEEK_SET);
-            int tag2Size = lame_get_id3v2_tag(encoder, outputBuffer, outputBufferSize);
-            if (tag2Size > outputBufferSize) {
-                log(Loggable::error, "couldn't write id3v2 tag");
-            } else
-                fwrite((char*)outputBuffer, tag2Size, 1, output);
-
-            int vbrTagSize = lame_get_lametag_frame(encoder, outputBuffer, outputBufferSize);
-            if (vbrTagSize > outputBufferSize)
-                log(Loggable::error, "couldn't write vbr tag");
-
-            fwrite((char*)outputBuffer, vbrTagSize, 1, output);
-        }
+        fileSize = ftell(output);
+        lame_mp3_tags_fid(encoder, output);
     }
 
     // std::cout << "   state: " << FLAC__StreamDecoderStateString[FLAC__stream_decoder_get_state(decoder)] << std::endl;
@@ -136,8 +97,6 @@ void FLACtoMP3::setOutputFile(const std::string& path) {
     lame_set_VBR(encoder, vbr_default);
     lame_set_VBR_quality(encoder, 0);
     lame_set_quality(encoder, 0);
-    if (!downscaleAlbumArt)
-        lame_set_write_id3tag_automatic(encoder, 0);
 }
 
 bool FLACtoMP3::initializeOutput() {
@@ -165,14 +124,8 @@ bool FLACtoMP3::initializeOutput() {
     pcmSize = lame_get_num_channels(encoder) * flacMaxBlockSize * bufferMultiplier;
     outputBufferSize = pcmSize / 2;
 
-    if (!downscaleAlbumArt) {
-        int tag2Size = lame_get_id3v2_tag(encoder, nullptr, 0);
-        int vbrTagSize = lame_get_lametag_frame(encoder, nullptr, 0);
-
-        fseek(output, tag2Size + vbrTagSize, SEEK_SET);  //reserve place for tags
-        if (tag2Size > outputBufferSize)
-            outputBufferSize = tag2Size;
-    }
+    TagLib::ByteVector vector = id3v2tag.render();
+    fwrite((const char*)vector.data(), vector.size(), 1, output);
 
     pcm = new int16_t[pcmSize];
     outputBuffer = new uint8_t[outputBufferSize];
@@ -192,47 +145,30 @@ void FLACtoMP3::processInfo(const FLAC__StreamMetadata_StreamInfo& info) {
 }
 
 void FLACtoMP3::processTags(const FLAC__StreamMetadata_VorbisComment& tags) {
-    bool artistSet = false;                                                         //in vorbis comment there could be more then 1 artist tag
-    for (FLAC__uint32 i = 0; i < tags.num_comments; ++i) {                          //usualy it's about guested and fetured artists
-        const FLAC__StreamMetadata_VorbisComment_Entry& entry = tags.comments[i];   //gonna keep only the first one for now
+    TagLib::PropertyMap props;
+    for (FLAC__uint32 i = 0; i < tags.num_comments; ++i) {
+        const FLAC__StreamMetadata_VorbisComment_Entry& entry = tags.comments[i];
         std::string_view comm((const char*)entry.entry);
-        if (comm.find(title) == 0) {
-            setTagTitle(comm.substr(title.size()));
-        } else if (comm.find(artist) == 0) {
-            if (!artistSet) {
-                setTagArtist(comm.substr(artist.size()));
-                artistSet = true;
-            } else {
-                log(minor, "more than one artist tag, ignoring " + std::string(comm.substr(artist.size())));
-            }
-        } else if (comm.find(album) == 0) {
-            setTagAlbum(comm.substr(album.size()));
-        } else if (comm.find(comment) == 0) {
-            id3tag_set_comment(encoder, comm.substr(comment.size()).data());
-        } else if (comm.find(genre) == 0) {
-            id3tag_set_genre(encoder, comm.substr(genre.size()).data());
-        } else if (comm.find(track) == 0) {
-            id3tag_set_track(encoder, comm.substr(track.size()).data());
-        } else if (comm.find(date) == 0) {
-            std::string_view fullDate = comm.substr(date.size());
-            if (fullDate.size() == 10) {                                            //1999-11-11    kind of string
-                std::string_view month = fullDate.substr(5, std::size_t(2));
-                std::string_view day = fullDate.substr(8);
-                std::string md = "TDAT=" + std::string(day) + std::string(month);
-                int res = id3tag_set_fieldvalue(encoder, md.c_str());
-                if (res != 0)
-                    log(warning, "wasn't able to set the date tag (" + md + ")");
-
-                fullDate = fullDate.substr(0, 4);   //year;
-            }
-            id3tag_set_year(encoder, std::string(fullDate).data());
-        } else if (!tryKnownTag(comm)) {
-            std::string tag = "TXXX=" + std::string(comm);
-            int res = id3tag_set_fieldvalue(encoder, tag.c_str());
-            if (res != 0)
-                log(warning, "wasn't able to set user tag (" + tag + ")");
+        std::string_view::size_type ePos = comm.find("=");
+        if (ePos == std::string_view::npos) {
+            log(warning, "couldn't understand tag (" + std::string(comm) + "), symbol '=' is missing, skipping");
+            continue;
         }
+        std::string key(comm.substr(0, ePos));
+        std::string value(comm.substr(ePos + 1));
+
+        if (key == "BPM") {                                     //somehow TagLib lets BPM be fractured
+            std::string::size_type dotPos = value.find(".");    //but IDv2.3.0 spec requires it to be integer
+            if (dotPos != std::string::npos)                    //I don't know better than just to floor it
+                value = value.substr(0, dotPos);
+        }
+
+        bool success = props.insert(key, TagLib::String(value, TagLib::String::UTF8));
+
+        if (!success)
+            log(warning, "couldn't understand tag (" + key + "), skipping");
     }
+    id3v2tag.setProperties(props);
 }
 
 void FLACtoMP3::processPicture(const FLAC__StreamMetadata_Picture& picture) {
@@ -246,9 +182,9 @@ void FLACtoMP3::processPicture(const FLAC__StreamMetadata_Picture& picture) {
                 log(warning, "failed to rescale album art");
         }
     } else {
-        int result = id3tag_set_albumart(encoder, (const char*)picture.data, picture.data_length);
-        if (result != 0)
-            log(warning, "couldn't set album art tag, errcode: " + std::to_string(result));
+        //auch, sorry for copying so much, but I haven't found a way around it yet
+        TagLib::ByteVector bytes((const char*)picture.data, picture.data_length);
+        attachPictureFrame(picture, bytes);
     }
 }
 
@@ -265,8 +201,9 @@ bool FLACtoMP3::scaleJPEG(const FLAC__StreamMetadata_Picture& picture) {
         log(Loggable::error, "error reading jpeg header");
         return false;
     }
+    TagLib::ByteVector vector (picture.data_length + 1024 * 4); //I allocate a little bit more not to corrupt someone else's the memory
     uint64_t mem_size = 0;
-    uint8_t *mem = new uint8_t[LAME_MAXALBUMART + 1024 * 4];    //I allocate a little bit more not to corrupt someone else's the memory
+    uint8_t* data = (uint8_t*)vector.data();
 
     dinfo.scale_num = 2;        //need to tune it, feels like 500 by 500 is a good size
     dinfo.scale_denom = 3;
@@ -276,7 +213,7 @@ bool FLACtoMP3::scaleJPEG(const FLAC__StreamMetadata_Picture& picture) {
     struct jpeg_error_mgr cerr;
     cinfo.err = jpeg_std_error(&cerr);
     jpeg_create_compress(&cinfo);
-    jpeg_mem_dest(&cinfo, &mem, &mem_size);
+    jpeg_mem_dest(&cinfo, &data, &mem_size);
 
     cinfo.image_width = dinfo.output_width;
     cinfo.image_height = dinfo.output_height;
@@ -290,14 +227,12 @@ bool FLACtoMP3::scaleJPEG(const FLAC__StreamMetadata_Picture& picture) {
     uint8_t* row = new uint8_t[rowSize];
 
     while (dinfo.output_scanline < dinfo.output_height) {
+        if (mem_size + rowSize > vector.size()) {
+            vector.resize(vector.size() + rowSize);
+            log(Loggable::major, "allocated memory for resising the image wasn't enougth, resising");
+        }
         jpeg_read_scanlines(&dinfo, &row, 1);
         jpeg_write_scanlines(&cinfo, &row, 1);
-
-        if (mem_size > LAME_MAXALBUMART) {
-            delete[] mem;
-            log(Loggable::error, "resized album art exceeded reserved buffer size, stopping before memory corrution");
-            return false;
-        }
     }
     jpeg_finish_decompress(&dinfo);
     jpeg_destroy_decompress(&dinfo);
@@ -307,41 +242,11 @@ bool FLACtoMP3::scaleJPEG(const FLAC__StreamMetadata_Picture& picture) {
 
     delete[] row;
 
-    int result = id3tag_set_albumart(encoder, (const char*)mem, mem_size);
-    delete[] mem;
+    vector.resize(mem_size);    //to shrink if down to the actual size
+    attachPictureFrame(picture, vector);
 
-    return result == 0;
+    return true;
 }
-
-bool FLACtoMP3::tryKnownTag(std::string_view source) {
-    for (const std::pair<const std::string, const std::string>& pair : knownTags) {
-        if (source.find(pair.first) == 0) {
-            if (pair.first == "LYRICS=") {
-                log(warning, "lyrics tag was not transfered, it is not supported currently");
-            } else if (pair.first == "BPM=") {
-                float bpm = std::atof(source.substr(pair.first.size()).data());
-                bpm = std::round(bpm);                                          //id3 bpm must be integer
-                int result = id3tag_set_fieldvalue(encoder, std::string(pair.second + std::to_string((int)bpm)).c_str());
-                if (result != 0)
-                    log(warning, "wasn't able to set BPM tag. Code = " + std::to_string(result));
-            } else if (pair.first == "ALBUMARTIST=") {
-                int res = setTagUSC2("TPE2", source.substr(pair.first.size()));
-                if (res != 0)
-                    log(warning, "wasn't able to album artist tag. Code = " + std::to_string(res));
-            } else {
-                std::string tag = pair.second + std::string(source.substr(pair.first.size()));
-                int res = id3tag_set_fieldvalue(encoder, tag.c_str());
-                if (res != 0)
-                    log(warning, "wasn't able to set tag (" + std::string(source) + "). Code = " + std::to_string(res));
-            }
-
-            return true;
-        }
-    }
-
-    return false;
-}
-
 
 bool FLACtoMP3::decodeFrame(const int32_t * const buffer[], uint32_t size) {
     if (!outputInitilized) {
@@ -459,28 +364,106 @@ void FLACtoMP3::error(const FLAC__StreamDecoder* decoder, FLAC__StreamDecoderErr
     self->log(Loggable::error, "Got error callback: " + errText);
 }
 
-void FLACtoMP3::setTagTitle(const std::string_view& title) {
-    id3tag_set_title(encoder, title.data());                //to set at least some possibly encoding broken id3v1 tag
-    int res = setTagUSC2("TIT2", title);
-    if (res != 0)
-        log(warning, "Couldn't set Title tag. Code = " + std::to_string(res));
+void FLACtoMP3::attachPictureFrame(const FLAC__StreamMetadata_Picture& picture, const TagLib::ByteVector& bytes) {
+    TagLib::ID3v2::AttachedPictureFrame* frame = new TagLib::ID3v2::AttachedPictureFrame();
+    frame->setPicture(bytes);
+    frame->setType(TagLib::ID3v2::AttachedPictureFrame::Media);
+    frame->setMimeType(picture.mime_type);
+    frame->setDescription(TagLib::String((const char*)picture.description, TagLib::String::UTF8));
+    switch (picture.type) {
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_OTHER:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::Other);
+            log(info, "attached picture is described as \"other\"");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_FILE_ICON_STANDARD:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::FileIcon);
+            log(info, "attached picture is a standard file icon");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_FILE_ICON:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::OtherFileIcon);
+            log(info, "attached picture is apparently not so standard file icon...");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_FRONT_COVER:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::FrontCover);
+            log(info, "attached picture is a front album cover");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_BACK_COVER:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::BackCover);
+            log(info, "attached picture is an back album cover");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_LEAFLET_PAGE:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::LeafletPage);
+            log(info, "attached picture is a leflet from the album");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_MEDIA:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::Media);
+            log(info, "attached picture is probably an imadge of an album CD");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_LEAD_ARTIST:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::LeadArtist);
+            log(info, "attached picture is an image of the lead artist");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_ARTIST:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::Artist);
+            log(info, "attached picture is an image the artist");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_CONDUCTOR:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::Conductor);
+            log(info, "attached picture is an image the conductor");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_BAND:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::Band);
+            log(info, "attached picture is an image of the band");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_COMPOSER:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::Composer);
+            log(info, "attached picture is an image of composer");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_LYRICIST:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::Lyricist);
+            log(info, "attached picture is an image of the lyricist");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_RECORDING_LOCATION:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::RecordingLocation);
+            log(info, "attached picture is an image recording location");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_DURING_RECORDING:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::DuringRecording);
+            log(info, "attached picture is an image of the process of the recording");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_DURING_PERFORMANCE:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::DuringPerformance);
+            log(info, "attached picture is an image of process of the performance");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_VIDEO_SCREEN_CAPTURE:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::MovieScreenCapture);
+            log(info, "attached picture is an frame from a movie");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_FISH:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::ColouredFish);
+            log(info, "attached picture is ... a bright large colo(u?)red fish...? o_O");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_ILLUSTRATION:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::Illustration);
+            log(info, "attached picture is an track related illustration");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_BAND_LOGOTYPE:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::BandLogo);
+            log(info, "attached picture is a band logo");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_PUBLISHER_LOGOTYPE:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::PublisherLogo);
+            log(info, "attached picture is a publisher logo");
+            break;
+        case FLAC__STREAM_METADATA_PICTURE_TYPE_UNDEFINED:
+            frame->setType(TagLib::ID3v2::AttachedPictureFrame::Other);
+            log(info, "attached picture is something unknown, so, I would assume it's \"other\"");
+            break;
+    }
+    log(info, "attached picture size: " + std::to_string(frame->picture().size()));
+    std::string description = frame->description().to8Bit();
+    if (description.size() > 0)
+        log(info, "attached picture has a description (b'cuz where else would you ever read it?): " + description);
+    id3v2tag.addFrame(frame);
 }
 
-void FLACtoMP3::setTagAlbum(const std::string_view& album) {
-    id3tag_set_album(encoder, album.data());                //to set at least some possibly encoding broken id3v1 tag
-    int res = setTagUSC2("TALB", album);
-    if (res != 0)
-        log(warning, "Couldn't set Album tag. Code = " + std::to_string(res));
-}
-
-void FLACtoMP3::setTagArtist(const std::string_view& artist) {
-    id3tag_set_artist(encoder, artist.data());                //to set at least some possibly encoding broken id3v1 tag
-    int res = setTagUSC2("TPE1", artist);
-    if (res != 0)
-        log(warning, "Couldn't set Artist tag. Code = " + std::to_string(res));
-}
-
-int FLACtoMP3::setTagUSC2(const std::string_view& field, const std::string_view& value) {
-    std::u16string utf16 = std::u16string({0xFEFF}) + usc2convertor.from_bytes(value.data());
-    return id3tag_set_textinfo_utf16(encoder, field.data(), (unsigned short*)utf16.c_str());
-}
