@@ -4,10 +4,14 @@
 
 #include <tpropertymap.h>
 #include <attachedpictureframe.h>
+#include <textidentificationframe.h>
 
 constexpr uint16_t flacDefaultMaxBlockSize = 4096;
 
 constexpr std::string_view jpeg ("image/jpeg");
+const std::map<std::string, std::string> textIdentificationReplacements({
+    {"PUBLISHER", "TPUB"}
+});
 
 FLACtoMP3::FLACtoMP3(Severity severity, uint8_t size) :
     Loggable(severity),
@@ -146,6 +150,7 @@ void FLACtoMP3::processInfo(const FLAC__StreamMetadata_StreamInfo& info) {
 
 void FLACtoMP3::processTags(const FLAC__StreamMetadata_VorbisComment& tags) {
     TagLib::PropertyMap props;
+    std::list<TagLib::ID3v2::Frame*> customFrames;
     for (FLAC__uint32 i = 0; i < tags.num_comments; ++i) {
         const FLAC__StreamMetadata_VorbisComment_Entry& entry = tags.comments[i];
         std::string_view comm((const char*)entry.entry);
@@ -163,12 +168,29 @@ void FLACtoMP3::processTags(const FLAC__StreamMetadata_VorbisComment& tags) {
                 value = value.substr(0, dotPos);
         }
 
-        bool success = props.insert(key, TagLib::String(value, TagLib::String::UTF8));
+        bool success = true;
+        std::map<std::string, std::string>::const_iterator itr = textIdentificationReplacements.find(key);
+        if (itr != textIdentificationReplacements.end()) {
+            TagLib::ID3v2::TextIdentificationFrame* frame = new TagLib::ID3v2::TextIdentificationFrame(itr->second.c_str());
+            frame->setText(value);
+            customFrames.push_back(frame);
+            log(debug, "tag \"" + key + "\" was remapped to \"" + itr->second + "\"");
+        } else {
+            success = props.insert(key, TagLib::String(value, TagLib::String::UTF8));
+        }
 
         if (!success)
             log(warning, "couldn't understand tag (" + key + "), skipping");
     }
+    TagLib::StringList unsupported = props.unsupportedData();
+    for (const TagLib::String& key : unsupported)
+        log(minor, "tag \"" + key.to8Bit() + "\", is not supported, probably won't display well");
+
     id3v2tag.setProperties(props);
+
+    for (TagLib::ID3v2::Frame* frame : customFrames)
+            id3v2tag.addFrame(frame);
+
 }
 
 void FLACtoMP3::processPicture(const FLAC__StreamMetadata_Picture& picture) {
@@ -460,7 +482,13 @@ void FLACtoMP3::attachPictureFrame(const FLAC__StreamMetadata_Picture& picture, 
             log(info, "attached picture is something unknown, so, I would assume it's \"other\"");
             break;
     }
-    log(info, "attached picture size: " + std::to_string(frame->picture().size()));
+
+    uint32_t sizeBytes = frame->picture().size();
+    float KBytes = (float)sizeBytes / 1024;
+    std::string strKBytes = std::to_string(KBytes);
+    strKBytes = strKBytes.substr(0, strKBytes.find(".") + 3) + " KiB";
+    log(info, "attached picture size: " + strKBytes);
+
     std::string description = frame->description().to8Bit();
     if (description.size() > 0)
         log(info, "attached picture has a description (b'cuz where else would you ever read it?): " + description);

@@ -1,6 +1,6 @@
 # Changelog
 
-## MLC 1.2.0 (UNRELEASED)
+## MLC 1.2.0 (August 11, 2023)
 - Better way of handling tags using TagLib
 
 ## MLC 1.1.0 (July 23, 2023)

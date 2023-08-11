@@ -118,7 +118,7 @@ void TaskManager::wait() {
 }
 
 TaskManager::JobResult TaskManager::job(const std::string& source, const std::string& destination) {
-    FLACtoMP3 convertor;
+    FLACtoMP3 convertor(Loggable::debug);
     convertor.setInputFile(source);
     convertor.setOutputFile(destination);
     bool result = convertor.run();
