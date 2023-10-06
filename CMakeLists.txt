@@ -19,15 +19,9 @@ find_package(JPEG REQUIRED)
 pkg_check_modules(LAME REQUIRED IMPORTED_TARGET lame)
 pkg_check_modules(TAGLIB REQUIRED IMPORTED_TARGET taglib)
 
-add_executable(mlc
-    main.cpp
-    help.cpp
-    decoded.cpp
-    flactomp3.cpp
-    collection.cpp
-    taskmanager.cpp
-    loggable.cpp
-)
+add_executable(mlc)
+
+add_subdirectory(src)
 
 target_link_libraries(mlc
     FLAC::FLAC

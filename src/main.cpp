@@ -9,27 +9,32 @@
 #include "help.h"
 #include "collection.h"
 #include "taskmanager.h"
+#include "settings.h"
 
 int main(int argc, char **argv) {
-    if (argc < 3) {
-        std::cout << "Insufficient amount of arguments, launch with \"--help\" argument to see usage" << std::endl;
-        return 1;
-    }
+    Settings settings(argc, argv);
 
-    const std::string firstArgument(argv[1]);
-    if (firstArgument == "--help") {
-        printHelp();
-        return 0;
+    switch (settings.getAction()) {
+        case Settings::help:
+            printHelp();
+            return 0;
+        case Settings::printConfig:
+            //printHelp();
+            return 0;
+        case Settings::convert:
+            std::cout << "Converting..." << std::endl;
+            break;
+        default:
+            std::cout << "Error in action" << std::endl;
+            return -1;
     }
-
-    const std::string secondArgument(argv[2]);
 
     TaskManager taskManager;
     taskManager.start();
 
     std::chrono::time_point start = std::chrono::system_clock::now();
-    Collection collection(firstArgument, &taskManager);
-    collection.convert(secondArgument);
+    Collection collection(settings.getInput(), &taskManager);
+    collection.convert(settings.getOutput());
 
     taskManager.printProgress();
     taskManager.wait();

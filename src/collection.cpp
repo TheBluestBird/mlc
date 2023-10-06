@@ -11,17 +11,14 @@ Collection::Collection(const std::string& path, TaskManager* tm) :
     countMusical(0),
     counted(false),
     taskManager(tm)
-{
-}
+{}
 
 Collection::Collection(const std::filesystem::path& path, TaskManager* tm):
     path(fs::canonical(path)),
     countMusical(0),
     counted(false),
     taskManager(tm)
-{
-}
-
+{}
 
 Collection::~Collection() {
 }
