@@ -1,3 +1,10 @@
+function(make_includable input_file output_file)
+    file(READ ${input_file} content)
+    set(delim "for_c++_include")
+    set(content "R\"${delim}(\n${content})${delim}\"")
+    file(WRITE ${output_file} "${content}")
+endfunction(make_includable)
+
 set(SOURCES
     main.cpp
     help.cpp
@@ -20,3 +27,6 @@ set(HEADERS
 )
 
 target_sources(${PROJECT_NAME} PRIVATE ${SOURCES})
+
+make_includable(default.conf ${CMAKE_BINARY_DIR}/generated/default.conf)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR})

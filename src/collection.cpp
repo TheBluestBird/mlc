@@ -71,13 +71,12 @@ void Collection::convert(const std::string& outPath) {
         switch (entry.status().type()) {
             case fs::file_type::regular: {
                 fs::path sourcePath = entry.path();
-                fs::path dstPath = out / sourcePath.filename();
-                if (isMusic(sourcePath)) {
-                    dstPath.replace_extension(".mp3");
+                fs::path dstPath = out / sourcePath.stem();
+                if (isMusic(sourcePath))
                     taskManager->queueJob(sourcePath, dstPath);
-                } else {
+                else
                     fs::copy_file(sourcePath, dstPath, fs::copy_options::overwrite_existing);
-                }
+
                 //std::cout << sourcePath << " => " << dstPath << std::endl;
             }   break;
             case fs::file_type::directory: {

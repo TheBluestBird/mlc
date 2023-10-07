@@ -22,7 +22,8 @@ constexpr const std::array<std::string_view, Loggable::fatal + 1> logHeaders({
     /*fatal*/   "FATAL: "
 });
 
-TaskManager::TaskManager():
+TaskManager::TaskManager(const std::shared_ptr<Settings>& settings):
+    settings(settings),
     busyThreads(0),
     maxTasks(0),
     completeTasks(0),
@@ -42,7 +43,7 @@ TaskManager::TaskManager():
 TaskManager::~TaskManager() {
 }
 
-void TaskManager::queueJob(const std::string& source, const std::string& destination) {
+void TaskManager::queueJob(const std::filesystem::path& source, const std::filesystem::path& destination) {
     {
         std::unique_lock<std::mutex> lock(queueMutex);
         jobs.emplace(source, destination);
@@ -83,7 +84,13 @@ void TaskManager::loop() {
             jobs.pop();
         }
 
-        JobResult result = job(pair.first, pair.second);
+        JobResult result;
+        switch (settings->getType()) {
+            case Settings::mp3:
+                result = mp3Job(pair.first, pair.second + ".mp3");
+                break;
+        }
+
         ++completeTasks;
         printProgress(result, pair.first, pair.second);
         --busyThreads;
@@ -117,7 +124,7 @@ void TaskManager::wait() {
     waitConditional.wait(lock, boundWaitCondition);
 }
 
-TaskManager::JobResult TaskManager::job(const std::string& source, const std::string& destination) {
+TaskManager::JobResult TaskManager::mp3Job(const std::filesystem::path& source, const std::filesystem::path& destination) {
     FLACtoMP3 convertor(Loggable::debug);
     convertor.setInputFile(source);
     convertor.setOutputFile(destination);
@@ -130,7 +137,11 @@ void TaskManager::printProgress() const {
     std::cout << "\r" << completeTasks << "/" << maxTasks << std::flush;
 }
 
-void TaskManager::printProgress(const TaskManager::JobResult& result, const std::string& source, const std::string& destination) const {
+void TaskManager::printProgress(
+    const TaskManager::JobResult& result,
+    const std::filesystem::path& source,
+    const std::filesystem::path& destination) const
+{
     std::unique_lock<std::mutex> lock(printMutex);
     if (result.first) {
         if (result.second.size() > 0) {
@@ -144,7 +155,11 @@ void TaskManager::printProgress(const TaskManager::JobResult& result, const std:
     std::cout << "\r" << completeTasks << "/" << maxTasks << std::flush;
 }
 
-void TaskManager::printLog(const TaskManager::JobResult& result, const std::string& source, const std::string& destination) {
+void TaskManager::printLog(
+    const TaskManager::JobResult& result,
+    const std::filesystem::path& source,
+    const std::filesystem::path& destination)
+{
     std::cout << "Source: \t" << source << std::endl;
     std::cout << "Destination: \t" << destination << std::endl;
     for (const Loggable::Message& msg : result.second) {

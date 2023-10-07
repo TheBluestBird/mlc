@@ -4,6 +4,7 @@
 #include <condition_variable>
 #include <thread>
 #include <functional>
+#include <filesystem>
 #include <vector>
 #include <list>
 #include <queue>
@@ -11,30 +12,33 @@
 #include <atomic>
 #include <iostream>
 #include <array>
+#include <memory>
 
 #include "loggable.h"
+#include "settings.h"
 
 class TaskManager {
     typedef std::pair<bool, std::list<Loggable::Message>> JobResult;
 public:
-    TaskManager();
+    TaskManager(const std::shared_ptr<Settings>& settings);
     ~TaskManager();
 
     void start();
-    void queueJob(const std::string& source, const std::string& destination);
+    void queueJob(const std::filesystem::path& source, const std::filesystem::path& destination);
     void stop();
     bool busy() const;
     void wait();
     void printProgress() const;
-    void printProgress(const JobResult& result, const std::string& source, const std::string& destination) const;
+    void printProgress(const JobResult& result, const std::filesystem::path& source, const std::filesystem::path& destination) const;
 
 private:
     void loop();
     bool loopCondition() const;
     bool waitCondition() const;
-    static JobResult job(const std::string& source, const std::string& destination);
-    static void printLog(const JobResult& result, const std::string& source, const std::string& destination);
+    static JobResult mp3Job(const std::filesystem::path& source, const std::filesystem::path& destination);
+    static void printLog(const JobResult& result, const std::filesystem::path& source, const std::filesystem::path& destination);
 private:
+    std::shared_ptr<Settings> settings;
     std::atomic<uint32_t> busyThreads;
     std::atomic<uint32_t> maxTasks;
     std::atomic<uint32_t> completeTasks;
@@ -45,7 +49,7 @@ private:
     std::condition_variable loopConditional;
     std::condition_variable waitConditional;
     std::vector<std::thread> threads;
-    std::queue<std::pair<std::string, std::string>> jobs;
+    std::queue<std::pair<std::filesystem::path, std::filesystem::path>> jobs;
     std::function<bool()> boundLoopCondition;
     std::function<bool()> boundWaitCondition;
 

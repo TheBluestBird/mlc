@@ -2,6 +2,9 @@
 
 #include <list>
 #include <string>
+#include <array>
+#include <string_view>
+#include <algorithm>
 
 class Loggable {
 public:
@@ -12,7 +15,8 @@ public:
         major,
         warning,
         error,
-        fatal
+        fatal,
+        _sevetirySize
     };
     typedef std::pair<Severity, std::string> Message;
 
@@ -21,6 +25,8 @@ public:
 
     void log (Severity severity, const std::string& comment) const;
     std::list<Message> getHistory() const;
+
+    static Severity stringToSeverity(const std::string& line);
 
 private:
     const Severity currentSeverity;

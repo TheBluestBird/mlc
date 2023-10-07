@@ -1,6 +1,8 @@
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <chrono>
+#include <memory>
 #include <unistd.h>
 
 #include "FLAC/stream_decoder.h"
@@ -12,14 +14,14 @@
 #include "settings.h"
 
 int main(int argc, char **argv) {
-    Settings settings(argc, argv);
+    std::shared_ptr<Settings> settings = std::make_shared<Settings>(argc, argv);
 
-    switch (settings.getAction()) {
+    switch (settings->getAction()) {
         case Settings::help:
             printHelp();
             return 0;
-        case Settings::printConfig:
-            //printHelp();
+        case Settings::config:
+            std::cout << settings->defaultConfig() << std::endl;
             return 0;
         case Settings::convert:
             std::cout << "Converting..." << std::endl;
@@ -29,12 +31,23 @@ int main(int argc, char **argv) {
             return -1;
     }
 
-    TaskManager taskManager;
+    if (!settings->readConfigFile() && settings->isConfigDefault()) {
+        std::string defaultConfigPath = settings->getConfigPath();
+        std::ofstream file(defaultConfigPath, std::ios::out | std::ios::trunc);
+        if (file.is_open()) {
+            std::cout << "Writing default config to " << defaultConfigPath << std::endl;
+            file << settings->defaultConfig();
+        } else {
+            std::cout << "Couldn't open " << defaultConfigPath << " to write default config" << std::endl;
+        }
+    }
+
+    TaskManager taskManager(settings);
     taskManager.start();
 
     std::chrono::time_point start = std::chrono::system_clock::now();
-    Collection collection(settings.getInput(), &taskManager);
-    collection.convert(settings.getOutput());
+    Collection collection(settings->getInput(), &taskManager);
+    collection.convert(settings->getOutput());
 
     taskManager.printProgress();
     taskManager.wait();
