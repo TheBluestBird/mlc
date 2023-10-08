@@ -55,7 +55,7 @@ void Settings::parseArguments() {
             }
 
             if (!output.has_value()) {
-                input = arg;
+                output = arg;
                 continue;
             }
         }
@@ -101,11 +101,11 @@ bool Settings::isConfigDefault() const {
     return !configPath.has_value();
 }
 
-Loggable::Severity Settings::getLogLevel() const {
+Logger::Severity Settings::getLogLevel() const {
     if (logLevel.has_value())
         return logLevel.value();
     else
-        return Loggable::info;
+        return Logger::Severity::info;
 }
 
 std::string_view Settings::stripFlags(const std::string_view& option) {
@@ -166,8 +166,8 @@ void Settings::readConfigLine(const std::string& line) {
         case level: {
             std::string lv;
             if (stream >> lv) {
-                Loggable::Severity level = Loggable::stringToSeverity(lv);
-                if (level < Loggable::_sevetirySize)
+                Logger::Severity level = Logger::stringToSeverity(lv);
+                if (level < Logger::Severity::_sevetirySize)
                     logLevel = level;
             }
         }   break;

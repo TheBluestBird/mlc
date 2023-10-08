@@ -12,7 +12,7 @@
 #include <cctype>
 #include <sstream>
 
-#include "loggable.h"
+#include "logger/logger.h"
 
 class Settings {
 public:
@@ -40,7 +40,7 @@ public:
     std::string getOutput() const;
     std::string getConfigPath() const;
     bool isConfigDefault() const;
-    Loggable::Severity getLogLevel() const;
+    Logger::Severity getLogLevel() const;
     Type getType() const;
     Action getAction() const;
 
@@ -66,6 +66,6 @@ private:
     std::optional<Type> outputType;
     std::optional<std::string> input;
     std::optional<std::string> output;
-    std::optional<Loggable::Severity> logLevel;
+    std::optional<Logger::Severity> logLevel;
     std::optional<std::string> configPath;
 };

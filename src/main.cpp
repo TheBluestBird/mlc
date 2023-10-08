@@ -12,8 +12,10 @@
 #include "collection.h"
 #include "taskmanager.h"
 #include "settings.h"
+#include "logger/logger.h"
 
 int main(int argc, char **argv) {
+    std::shared_ptr<Printer> logger = std::make_shared<Printer>();
     std::shared_ptr<Settings> settings = std::make_shared<Settings>(argc, argv);
 
     switch (settings->getAction()) {
@@ -42,20 +44,33 @@ int main(int argc, char **argv) {
         }
     }
 
-    TaskManager taskManager(settings);
+    std::string input = settings->getInput();
+    if (input.empty()) {
+        std::cout << "Input folder is not specified, quitting" << std::endl;
+        return -2;
+    }
+
+    std::string output = settings->getOutput();
+    if (output.empty()) {
+        std::cout << "Output folder is not specified, quitting" << std::endl;
+        return -3;
+    }
+
+    logger->setSeverity(settings->getLogLevel());
+    TaskManager taskManager(settings, logger);
     taskManager.start();
 
     std::chrono::time_point start = std::chrono::system_clock::now();
-    Collection collection(settings->getInput(), &taskManager);
-    collection.convert(settings->getOutput());
+    Collection collection(input, &taskManager);
+    collection.convert(output);
 
-    taskManager.printProgress();
     taskManager.wait();
+    std::cout << std::endl;
+    taskManager.stop();
+
     std::chrono::time_point end = std::chrono::system_clock::now();
     std::chrono::duration<double> seconds = end - start;
-    std::cout << std::endl << "Encoding is done, it took " << seconds.count() << " seconds in total, enjoy!" << std::endl;
-
-    taskManager.stop();
+    std::cout  << "Encoding is done, it took " << seconds.count() << " seconds in total, enjoy!" << std::endl;
 
     return 0;
 }

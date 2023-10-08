@@ -14,13 +14,13 @@
 #include <array>
 #include <memory>
 
-#include "loggable.h"
 #include "settings.h"
+#include "logger/printer.h"
 
 class TaskManager {
-    typedef std::pair<bool, std::list<Loggable::Message>> JobResult;
+    typedef std::pair<bool, std::list<Logger::Message>> JobResult;
 public:
-    TaskManager(const std::shared_ptr<Settings>& settings);
+    TaskManager(const std::shared_ptr<Settings>& settings, const std::shared_ptr<Printer>& logger);
     ~TaskManager();
 
     void start();
@@ -28,30 +28,25 @@ public:
     void stop();
     bool busy() const;
     void wait();
-    void printProgress() const;
-    void printProgress(const JobResult& result, const std::filesystem::path& source, const std::filesystem::path& destination) const;
+
+    unsigned int getCompleteTasks() const;
 
 private:
     void loop();
-    bool loopCondition() const;
-    bool waitCondition() const;
-    static JobResult mp3Job(const std::filesystem::path& source, const std::filesystem::path& destination);
-    static void printLog(const JobResult& result, const std::filesystem::path& source, const std::filesystem::path& destination);
+    static JobResult mp3Job(const std::filesystem::path& source, const std::filesystem::path& destination, Logger::Severity logLevel);
 private:
     std::shared_ptr<Settings> settings;
-    std::atomic<uint32_t> busyThreads;
-    std::atomic<uint32_t> maxTasks;
-    std::atomic<uint32_t> completeTasks;
+    std::shared_ptr<Printer> logger;
+    unsigned int busyThreads;
+    unsigned int maxTasks;
+    unsigned int completeTasks;
     bool terminate;
-    mutable std::mutex printMutex;
+    bool running;
     mutable std::mutex queueMutex;
-    std::mutex busyMutex;
     std::condition_variable loopConditional;
     std::condition_variable waitConditional;
     std::vector<std::thread> threads;
     std::queue<std::pair<std::filesystem::path, std::filesystem::path>> jobs;
-    std::function<bool()> boundLoopCondition;
-    std::function<bool()> boundWaitCondition;
 
 };
 

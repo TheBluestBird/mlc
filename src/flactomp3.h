@@ -10,16 +10,18 @@
 #include <map>
 #include <stdio.h>
 
-#include "loggable.h"
+#include "logger/accumulator.h"
 
-class FLACtoMP3 : public Loggable {
+class FLACtoMP3 {
 public:
-    FLACtoMP3(Severity severity = info, uint8_t size = 4);
+    FLACtoMP3(Logger::Severity severity = Logger::Severity::info, uint8_t size = 4);
     ~FLACtoMP3();
 
     void setInputFile(const std::string& path);
     void setOutputFile(const std::string& path);
     bool run();
+
+    std::list<Logger::Message> getHistory() const;
 
 private:
     void processTags(const FLAC__StreamMetadata_VorbisComment& tags);
@@ -41,6 +43,7 @@ private:
     );
 
 private:
+    Accumulator logger;
     std::string inPath;
     std::string outPath;
 

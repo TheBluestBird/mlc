@@ -1,5 +1,9 @@
 # Changelog
 
+## MLC 1.3.0 (UNRELEASED)
+- Config file to control the process
+- Program modes concept to implement config print and help
+
 ## MLC 1.2.0 (August 11, 2023)
 - Better way of handling tags using TagLib
 
