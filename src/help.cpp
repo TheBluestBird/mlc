@@ -2,6 +2,10 @@
 
 #include "iostream"
 
+static const char* help =
+#include "generated/help"
+;
+
 void printHelp() {
-    std::cout << "Sorry, there is no help yet. It will arrive one day... I hope" << std::endl;
+    std::cout << help << std::endl;
 }

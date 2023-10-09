@@ -7,6 +7,7 @@ This is a program for compilation of your loseless music library to lossy format
 - flac
 - lame
 - jpeg
+- taglib
 
 ### Building
 

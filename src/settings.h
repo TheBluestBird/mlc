@@ -28,12 +28,6 @@ public:
         _typesSize
     };
 
-    enum Option {
-        level,
-        type,
-        _optionsSize
-    };
-
     Settings(int argc, char **argv);
 
     std::string getInput() const;
@@ -43,6 +37,7 @@ public:
     Logger::Severity getLogLevel() const;
     Type getType() const;
     Action getAction() const;
+    unsigned int getThreads() const;
 
     bool readConfigFile();
     void readConfigLine(const std::string& line);
@@ -51,14 +46,13 @@ public:
     static Action stringToAction(const std::string& source);
     static Action stringToAction(const std::string_view& source);
     static Type stringToType(const std::string& source);
-    static Option stringToOption(const std::string& source);
 
 private:
     void parseArguments();
 
-    static std::string_view stripFlags(const std::string_view& option);
     static void strip(std::string& line);
     static void stripComment(std::string& line);
+    static std::string resolvePath(const std::string& line);
 
 private:
     std::vector<std::string_view> arguments;
@@ -68,4 +62,5 @@ private:
     std::optional<std::string> output;
     std::optional<Logger::Severity> logLevel;
     std::optional<std::string> configPath;
+    std::optional<unsigned int> threads;
 };

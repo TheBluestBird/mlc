@@ -1,7 +1,8 @@
 # Changelog
 
-## MLC 1.3.0 (UNRELEASED)
+## MLC 1.3.0 (October 09, 2023)
 - Config file to control the process
+- First help page
 - Program modes concept to implement config print and help
 
 ## MLC 1.2.0 (August 11, 2023)

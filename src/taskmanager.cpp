@@ -42,8 +42,11 @@ void TaskManager::start() {
     if (running)
         return;
 
-    const uint32_t num_threads = std::thread::hardware_concurrency();
-    for (uint32_t ii = 0; ii < num_threads; ++ii)
+    unsigned int amount = settings->getThreads();
+    if (amount == 0)
+        amount = std::thread::hardware_concurrency();
+
+    for (uint32_t i = 0; i < amount; ++i)
         threads.emplace_back(std::thread(&TaskManager::loop, this));
 
     running = true;

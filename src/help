@@ -1,0 +1,42 @@
+Usage:
+    mlc [action] [arguments] [flags]
+
+Actions:
+    convert     - converts music
+    config      - prints default config
+    help        - prints this page
+
+Default action is `convert`, so it can be omitted
+
+Arguments work only for `convert` action
+    first       - collection source
+    second      - collection destination
+
+Flags:
+    -c (--config) <path>
+                - sets custom config instead of default one
+
+    -h (--help)
+                - sets action to help, and prints this page
+
+Examples:
+    `mlc ~/Music comile/latest`
+                - reads config file from `~/.config/mlc.conf`
+                - if there was not - creates default that changes nothing
+                - creates directory `conpile` in the CURRENT directory if it was not created before
+                - create `latest` directory in `compile` dirrectory if it was not created before
+                - searches for music in `~/Music` directory
+                - converts all music to `comile/latest` directory
+                - copies all other files found in `~/Music` to `comile/latest`
+                - any file name overlap will be overriden
+
+    `mlc config > myConfig.conf`
+                - prints default config to standard output
+                - unix operator `>` redirects output to a file `myConfig.conf`
+
+    `mlc rip -c myConfig.conf`
+                - reads file `myConfig.conf` from current directory
+                - if `myConfig.conf` has a valid `source` entry - uses it and uses `rip` as destination
+                - if `myConfig.conf` has a valid `destination` entry - uses it and uses `rip` as source
+                - if both present (don't do this way) - it depends on the order, who comes first - defines behaviour
+                - the rest is the same from the first example apart from default config

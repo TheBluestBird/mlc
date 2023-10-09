@@ -29,4 +29,5 @@ target_sources(${PROJECT_NAME} PRIVATE ${SOURCES})
 add_subdirectory(logger)
 
 make_includable(default.conf ${CMAKE_BINARY_DIR}/generated/default.conf)
+make_includable(help ${CMAKE_BINARY_DIR}/generated/help)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR})
