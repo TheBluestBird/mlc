@@ -9,16 +9,13 @@ jobs:
     runs-on: archlinux
     steps:
       - name: Download the release tarball
-        uses: curl -sL "${{ gitea.server_url }}/${{ gitea.repository }}/archive/${{ gitea.event.release.tag_name }}.tar.gz"
-
-      - name: Set tarball filename variable
-        run: echo "tbName=$(echo ${{ gitea.event.repository.name }}-${{ gitea.event.release.tag_name }}.tar.gz)" >> $GITHUB_ENV
+        uses: curl -sL "${{ gitea.server_url }}/${{ gitea.repository }}/archive/${{ gitea.event.release.tag_name }}.tar.gz" --output tarball.tar.gz
 
       - name: Calculate SHA256 for the tarball
-        run: echo "tbSum=$(echo sha256sum ${{ env.tbName }} | cut -d " " -f 1" >> $GITHUB_ENV
+        run: echo "tbSum=$(echo sha256sum tarball.tar.gz | cut -d " " -f 1" >> $GITHUB_ENV
 
       - name: Unarchive tarball
-        run: tar -xvzf ${{ env.tbName }}
+        run: tar -xvzf tarball.tar.gz
 
       - name: Create a directory
         run: mkdir aur
