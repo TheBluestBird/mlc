@@ -1,5 +1,11 @@
 # Changelog
 
+## MLC 1.3.1 (October 10, 2023)
+- Release build with optimisations
+- Removed unused files from build
+- Suppressed warnings
+- CI to release to AUR
+
 ## MLC 1.3.0 (October 09, 2023)
 - Config file to control the process
 - First help page

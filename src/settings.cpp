@@ -48,7 +48,7 @@ bool is_space(char ch){
 }
 
 Flag getFlag(const std::string_view arg) {
-    for (int i = 0; i < flags.size(); ++i) {
+    for (unsigned char i = 0; i < flags.size(); ++i) {
         const Literals& lit = flags[i];
         unsigned char dist = std::distance(lit.begin(), std::find(lit.begin(), lit.end(), arg));
         if (dist < lit.size())
@@ -82,7 +82,7 @@ Settings::Settings(int argc, char ** argv):
 
 void Settings::parseArguments() {
     Flag flag = Flag::none;
-    for (int i = 0; i < arguments.size(); ++i) {
+    for (unsigned int i = 0; i < arguments.size(); ++i) {
         const std::string_view& arg = arguments[i];
         if (i == 0) {
             Action act = stringToAction(arg);

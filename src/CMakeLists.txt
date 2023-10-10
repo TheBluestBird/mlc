@@ -8,7 +8,7 @@ endfunction(make_includable)
 set(SOURCES
     main.cpp
     help.cpp
-    decoded.cpp
+    #decoded.cpp
     flactomp3.cpp
     collection.cpp
     taskmanager.cpp
@@ -17,7 +17,7 @@ set(SOURCES
 
 set(HEADERS
     help.h
-    decoded.h
+    #decoded.h
     flactomp3.h
     collection.h
     taskmanager.h

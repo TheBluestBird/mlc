@@ -1,0 +1,41 @@
+name: MLC Release workflow
+run-name: ${{ gitea.actor }} is running MLC Release workflow on release ${{ gitea.event.release.tag_name }}
+on:
+  release:
+    types: [published]
+
+jobs:
+  Archlinux:
+    runs-on: archlinux
+    steps:
+      - name: Download the release tarball
+        uses: curl -sL "${{ gitea.server_url }}/${{ gitea.repository }}/archive/${{ gitea.event.release.tag_name }}.tar.gz"
+
+      - name: Set tarball filename variable
+        run: echo "tbName=$(echo ${{ gitea.event.repository.name }}-${{ gitea.event.release.tag_name }}.tar.gz)" >> $GITHUB_ENV
+
+      - name: Calculate SHA256 for the tarball
+        run: echo "tbSum=$(echo sha256sum ${{ env.tbName }} | cut -d " " -f 1" >> $GITHUB_ENV
+
+      - name: Unarchive tarball
+        run: tar -xvzf ${{ env.tbName }}
+
+      - name: Create a directory
+        run: mkdir aur
+
+      - name: Copy PKGBUILD to the directory
+        run: cp mlc/packaging/Archlinux/PKGBUILD aur/
+
+      - name: Put SHA256 sum to PKGBUILD file
+        working-directory: aur
+        run: sed -i "/sha256sums=/c\sha256sums=('${{ env.tbSum }}')" PKGBUILD
+
+      - name: create SRCINFO
+        working-directory: aur
+        run: makepkg --printsrcinfo > .SRCINFO
+
+      - name: Debug print PKGBUILD
+        run: cat aur/PKGBUILD
+
+      - name: Debug print .SRCINFO
+        run: cat aur/.SRCINFO
