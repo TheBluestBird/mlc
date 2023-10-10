@@ -11,8 +11,11 @@ jobs:
       - name: Download the release tarball
         run: curl -sL ${{ gitea.server_url }}/${{ gitea.repository }}/archive/${{ gitea.event.release.tag_name }}.tar.gz --output tarball.tar.gz
 
+      - name: Debug output
+        run: echo ${{ gitea.href }}
+
       - name: Calculate SHA256 for the tarball
-        run: echo "tbSum=$(echo sha256sum tarball.tar.gz | cut -d " " -f 1" >> $GITHUB_ENV
+        run: echo "tbSum=$(sha256sum tarball.tar.gz | cut -d ' ' -f 1)" >> $GITHUB_ENV
 
       - name: Unarchive tarball
         run: tar -xvzf tarball.tar.gz
