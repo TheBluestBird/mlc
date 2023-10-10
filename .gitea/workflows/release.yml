@@ -9,7 +9,7 @@ jobs:
     runs-on: archlinux
     steps:
       - name: Download the release tarball
-        uses: curl -sL "${{ gitea.server_url }}/${{ gitea.repository }}/archive/${{ gitea.event.release.tag_name }}.tar.gz" --output tarball.tar.gz
+        run: curl -sL ${{ gitea.server_url }}/${{ gitea.repository }}/archive/${{ gitea.event.release.tag_name }}.tar.gz --output tarball.tar.gz
 
       - name: Calculate SHA256 for the tarball
         run: echo "tbSum=$(echo sha256sum tarball.tar.gz | cut -d " " -f 1" >> $GITHUB_ENV
