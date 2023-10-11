@@ -19,7 +19,7 @@ jobs:
 
       - name: Clone the AUR repository
         run: |
-          echo ${{ secrets.DEPLOY_TO_AUR_PRIVATE_KEY }} > key
+          echo "${{ secrets.DEPLOY_TO_AUR_PRIVATE_KEY }}" > key
           GIT_SSH_COMMAND="ssh -i key -o 'IdentitiesOnly yes'" git clone ssh://aur@aur.archlinux.org/mlc.git aur
           chmod 777 -R aur/.SRCINFO
           cd aur
