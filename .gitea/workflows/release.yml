@@ -4,10 +4,6 @@ on:
   release:
     types: [published]
 
-env:
-  git: |
-    GIT_SSH_COMMAND="ssh -i key -o 'IdentitiesOnly yes' -o 'StrictHostKeyChecking no'" git
-
 jobs:
   Archlinux:
     runs-on: archlinux
@@ -24,7 +20,7 @@ jobs:
       - name: Clone the AUR repository
         run: |
           echo "${{ secrets.DEPLOY_TO_AUR_PRIVATE_KEY }}" > key
-          $git clone ssh://aur@aur.archlinux.org/mlc.git aur
+          GIT_SSH_COMMAND="ssh -i key -o 'IdentitiesOnly yes' -o 'StrictHostKeyChecking no'" git clone ssh://aur@aur.archlinux.org/mlc.git aur
           chmod 777 -R aur/.SRCINFO
           cd aur
           git config user.name ${{ secrets.DEPLOY_TO_AUR_USER_NAME }}
@@ -45,4 +41,4 @@ jobs:
         run: |
           git add PKGBUILD .SRCINFO
           git commit -m "${{ gitea.event.release.body }}"
-          $git push
+          GIT_SSH_COMMAND="ssh -i ../key -o 'IdentitiesOnly yes' -o 'StrictHostKeyChecking no'" git push
