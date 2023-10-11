@@ -11,34 +11,34 @@ jobs:
       - name: Download the release tarball
         run: curl -sL ${{ gitea.server_url }}/${{ gitea.repository }}/archive/${{ gitea.event.release.tag_name }}.tar.gz --output tarball.tar.gz
 
-      - name: Debug output
-        run: echo ${{ gitea.ref }}
-
       - name: Calculate SHA256 for the tarball
         run: echo "tbSum=$(sha256sum tarball.tar.gz | cut -d ' ' -f 1)" >> $GITHUB_ENV
 
       - name: Unarchive tarball
         run: tar -xvzf tarball.tar.gz
 
-      - name: Create a directory
-        run: mkdir aur
+      - name: Clone the AUR repository
+        run: |
+          echo ${{ secrets.DEPLOY_TO_AUR_PRIVATE_KEY }} > key
+          GIT_SSH_COMMAND="ssh -i key -o 'IdentitiesOnly yes'" git clone ssh://aur@aur.archlinux.org/mlc.git aur
+          chmod 777 -R aur/.SRCINFO
+          cd aur
+          git config user.name ${{ secrets.DEPLOY_TO_AUR_USER_NAME }}
+          git config user.email ${{ secrets.DEPLOY_TO_AUR_EMAIL }}
 
-      - name: Release permissions
-        run: chmod 777 aur
 
       - name: Copy PKGBUILD to the directory
         run: cp mlc/packaging/Archlinux/PKGBUILD aur/
 
-      - name: Put SHA256 sum to PKGBUILD file
+      - name: Put SHA256 sum to PKGBUILD file, and generate .SRCINFO
         working-directory: aur
-        run: sed -i "/sha256sums=/c\sha256sums=('${{ env.tbSum }}')" PKGBUILD
+        run: |
+          sed -i "/sha256sums=/c\sha256sums=('${{ env.tbSum }}')" PKGBUILD
+          sudo -u build makepkg --printsrcinfo > .SRCINFO
 
-      - name: create SRCINFO
+      - name: Commit package to aur
         working-directory: aur
-        run: sudo -u build makepkg --printsrcinfo > .SRCINFO
-
-      - name: Debug print PKGBUILD
-        run: cat aur/PKGBUILD
-
-      - name: Debug print .SRCINFO
-        run: cat aur/.SRCINFO
+        run: |
+          git add PKGBUILD .SRCINFO
+          git commit -m "${{ gitea.event.release.body }}"
+          GIT_SSH_COMMAND="ssh -i ../key -o 'IdentitiesOnly yes'" git push
