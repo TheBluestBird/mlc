@@ -5,7 +5,8 @@ on:
     types: [published]
 
 env:
-  git: GIT_SSH_COMMAND="ssh -i key -o 'IdentitiesOnly yes' -o 'StrictHostKeyChecking no'" git
+  git: |
+    GIT_SSH_COMMAND="ssh -i key -o 'IdentitiesOnly yes' -o 'StrictHostKeyChecking no'" git
 
 jobs:
   Archlinux:
