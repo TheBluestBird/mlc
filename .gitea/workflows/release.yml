@@ -12,7 +12,7 @@ jobs:
         run: curl -sL ${{ gitea.server_url }}/${{ gitea.repository }}/archive/${{ gitea.event.release.tag_name }}.tar.gz --output tarball.tar.gz
 
       - name: Debug output
-        run: echo ${{ gitea.href }}
+        run: echo ${{ gitea.ref }}
 
       - name: Calculate SHA256 for the tarball
         run: echo "tbSum=$(sha256sum tarball.tar.gz | cut -d ' ' -f 1)" >> $GITHUB_ENV
@@ -23,6 +23,9 @@ jobs:
       - name: Create a directory
         run: mkdir aur
 
+      - name: Release permissions
+        run: chmod 777 aur
+
       - name: Copy PKGBUILD to the directory
         run: cp mlc/packaging/Archlinux/PKGBUILD aur/
 
@@ -32,7 +35,7 @@ jobs:
 
       - name: create SRCINFO
         working-directory: aur
-        run: makepkg --printsrcinfo > .SRCINFO
+        run: sudo -u build makepkg --printsrcinfo > .SRCINFO
 
       - name: Debug print PKGBUILD
         run: cat aur/PKGBUILD
