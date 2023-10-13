@@ -1,7 +1,8 @@
 # Changelog
 
-## MLC 1.3.3 (UNRELEASED)
+## MLC 1.3.3 (October 13, 2023)
 - Regex to specify non-music files to copy
+- Encoding settings (VBR/CBR, encoding quality, output quality)
 
 ## MLC 1.3.2 (October 10, 2023)
 - A release purely for CI

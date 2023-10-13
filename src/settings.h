@@ -40,6 +40,9 @@ public:
     Action getAction() const;
     unsigned int getThreads() const;
     bool matchNonMusic(const std::string& fileName) const;
+    unsigned char getEncodingQuality() const;
+    unsigned char getOutputQuality() const;
+    bool getVBR() const;
 
     bool readConfigFile();
     void readConfigLine(const std::string& line);
@@ -66,4 +69,7 @@ private:
     std::optional<std::string> configPath;
     std::optional<unsigned int> threads;
     std::optional<std::regex> nonMusic;
+    std::optional<unsigned char> encodingQuality;
+    std::optional<unsigned char> outputQuality;
+    std::optional<bool> vbr;
 };

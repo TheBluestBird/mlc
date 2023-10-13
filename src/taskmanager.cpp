@@ -119,14 +119,15 @@ unsigned int TaskManager::getCompleteTasks() const {
     return completeTasks;
 }
 
-TaskManager::JobResult TaskManager::execute(const Job& job) {
+TaskManager::JobResult TaskManager::execute(Job& job) {
     switch (job.type) {
         case Job::copy:
-            return copyJob(job, settings->getLogLevel());
+            return copyJob(job, settings);
         case Job::convert:
             switch (settings->getType()) {
                 case Settings::mp3:
-                    return mp3Job(job, settings->getLogLevel());
+                    job.destination.replace_extension("mp3");
+                    return mp3Job(job, settings);
                 default:
                     break;
             }
@@ -162,19 +163,18 @@ void TaskManager::printResilt(const TaskManager::Job& job, const TaskManager::Jo
     );
 }
 
-TaskManager::JobResult TaskManager::mp3Job(
-    const TaskManager::Job& job,
-    Logger::Severity logLevel)
-{
-    FLACtoMP3 convertor(logLevel);
+TaskManager::JobResult TaskManager::mp3Job(const TaskManager::Job& job, const std::shared_ptr<Settings>& settings) {
+    FLACtoMP3 convertor(settings->getLogLevel());
     convertor.setInputFile(job.source);
-    convertor.setOutputFile(job.destination.string() + ".mp3");
+    convertor.setOutputFile(job.destination);
+    convertor.setParameters(settings->getEncodingQuality(), settings->getOutputQuality(), settings->getVBR());
     bool result = convertor.run();
+
     return {result, convertor.getHistory()};
 }
 
-TaskManager::JobResult TaskManager::copyJob(const TaskManager::Job& job, Logger::Severity logLevel) {
-    (void)(logLevel);
+TaskManager::JobResult TaskManager::copyJob(const TaskManager::Job& job, const std::shared_ptr<Settings>& settings) {
+    (void)(settings);
     bool success = std::filesystem::copy_file(
         job.source,
         job.destination,

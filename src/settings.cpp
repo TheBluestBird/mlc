@@ -17,6 +17,9 @@ enum class Option {
     destination,
     parallel,
     filesToCopy,
+    encodingQuality,
+    outputQuality,
+    vbr,
     _optionsSize
 };
 
@@ -38,12 +41,18 @@ constexpr std::array<std::string_view, static_cast<int>(Option::_optionsSize)> o
     "source",
     "destination",
     "parallel",
-    "filesToCopy"
+    "filesToCopy",
+    "encodingQuality",
+    "outputQuality",
+    "vbr"
 });
 
 constexpr std::array<std::string_view, Settings::_typesSize> types({
     "mp3"
 });
+
+constexpr unsigned int maxQuality = 9;
+constexpr unsigned int minQuality = 0;
 
 bool is_space(char ch){
     return std::isspace(static_cast<unsigned char>(ch));
@@ -77,7 +86,10 @@ Settings::Settings(int argc, char ** argv):
     logLevel(std::nullopt),
     configPath(std::nullopt),
     threads(std::nullopt),
-    nonMusic(std::nullopt)
+    nonMusic(std::nullopt),
+    encodingQuality(std::nullopt),
+    outputQuality(std::nullopt),
+    vbr(std::nullopt)
 {
     for (int i = 1; i < argc; ++i)
         arguments.push_back(argv[i]);
@@ -187,6 +199,27 @@ unsigned int Settings::getThreads() const {
         return 0;
 }
 
+unsigned char Settings::getOutputQuality() const {
+    if (outputQuality.has_value())
+        return outputQuality.value();
+    else
+        return minQuality;      //actually, it means max possible quality
+}
+
+unsigned char Settings::getEncodingQuality() const {
+    if (encodingQuality.has_value())
+        return encodingQuality.value();
+    else
+        return minQuality;      //actually, it means max possible quality
+}
+
+bool Settings::getVBR() const {
+    if (vbr.has_value())
+        return vbr.value();
+    else
+        return true;
+}
+
 void Settings::strip(std::string& line) {
     line.erase(line.begin(), std::find_if(line.begin(), line.end(), std::not_fn(is_space)));
     line.erase(std::find_if(line.rbegin(), line.rend(), std::not_fn(is_space)).base(), line.end());
@@ -279,6 +312,21 @@ void Settings::readConfigLine(const std::string& line) {
 
                 nonMusic = regex;
             }
+        }   break;
+        case Option::outputQuality: {
+            unsigned int value;
+            if (!outputQuality.has_value() && stream >> value)
+                outputQuality = std::clamp(value, minQuality, maxQuality);
+        }   break;
+        case Option::encodingQuality: {
+            unsigned int value;
+            if (!encodingQuality.has_value() && stream >> value)
+                encodingQuality = std::clamp(value, minQuality, maxQuality);
+        }   break;
+        case Option::vbr: {
+            bool value;
+            if (!vbr.has_value() && stream >> std::boolalpha >> value)
+                vbr = value;
         }   break;
         default:
             break;

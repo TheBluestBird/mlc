@@ -12,6 +12,18 @@ constexpr std::string_view jpeg ("image/jpeg");
 const std::map<std::string, std::string> textIdentificationReplacements({
     {"PUBLISHER", "TPUB"}
 });
+constexpr std::array<int, 10> bitrates({
+    320,
+    288,
+    256,
+    224,
+    192,
+    160,
+    128,
+    96,
+    64,
+    32
+});
 
 FLACtoMP3::FLACtoMP3(Logger::Severity severity, uint8_t size) :
     logger(severity),
@@ -46,7 +58,7 @@ bool FLACtoMP3::run() {
         if (pcmCounter > 0)
             flush();
 
-        int nwrite = lame_encode_flush(encoder, outputBuffer, pcmSize * 2);
+        int nwrite = lame_encode_flush(encoder, outputBuffer, outputBufferSize);
         fwrite((char*)outputBuffer, nwrite, 1, output);
 
 
@@ -98,9 +110,21 @@ void FLACtoMP3::setOutputFile(const std::string& path) {
 
     outPath = path;
 
-    lame_set_VBR(encoder, vbr_default);
-    lame_set_VBR_quality(encoder, 0);
-    lame_set_quality(encoder, 0);
+}
+
+void FLACtoMP3::setParameters(unsigned char encodingQuality, unsigned char outputQuality, bool vbr) {
+    if (vbr) {
+        logger.info("Encoding to VBR with quality " + std::to_string(outputQuality));
+        lame_set_VBR(encoder, vbr_default);
+        lame_set_VBR_quality(encoder, outputQuality);
+    } else {
+        int bitrate = bitrates[outputQuality];
+        logger.info("Encoding to CBR " + std::to_string(bitrate));
+        lame_set_VBR(encoder, vbr_off);
+        lame_set_brate(encoder, bitrate);
+    }
+
+    lame_set_quality(encoder, encodingQuality);
 }
 
 bool FLACtoMP3::initializeOutput() {
@@ -306,7 +330,7 @@ bool FLACtoMP3::flush() {
         nwrite = lame_encode_buffer_interleaved(
             encoder,
             pcm,
-            pcmCounter,
+            pcmCounter / 2,
             outputBuffer,
             outputBufferSize
         );

@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 #include <map>
+#include <array>
 #include <stdio.h>
 
 #include "logger/accumulator.h"
@@ -19,6 +20,7 @@ public:
 
     void setInputFile(const std::string& path);
     void setOutputFile(const std::string& path);
+    void setParameters(unsigned char encodingQuality, unsigned char outputQuality, bool vbr);
     bool run();
 
     std::list<Logger::Message> getHistory() const;

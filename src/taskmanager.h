@@ -35,10 +35,10 @@ public:
 
 private:
     void loop();
-    JobResult execute(const Job& job);
+    JobResult execute(Job& job);
     void printResilt(const Job& job, const JobResult& result);
-    static JobResult mp3Job(const Job& job, Logger::Severity logLevel);
-    static JobResult copyJob(const Job& job, Logger::Severity logLevel);
+    static JobResult mp3Job(const Job& job, const std::shared_ptr<Settings>& settings);
+    static JobResult copyJob(const Job& job, const std::shared_ptr<Settings>& settings);
 
 private:
     std::shared_ptr<Settings> settings;
