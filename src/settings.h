@@ -11,6 +11,7 @@
 #include <functional>
 #include <cctype>
 #include <sstream>
+#include <regex>
 
 #include "logger/logger.h"
 
@@ -38,6 +39,7 @@ public:
     Type getType() const;
     Action getAction() const;
     unsigned int getThreads() const;
+    bool matchNonMusic(const std::string& fileName) const;
 
     bool readConfigFile();
     void readConfigLine(const std::string& line);
@@ -63,4 +65,5 @@ private:
     std::optional<Logger::Severity> logLevel;
     std::optional<std::string> configPath;
     std::optional<unsigned int> threads;
+    std::optional<std::regex> nonMusic;
 };

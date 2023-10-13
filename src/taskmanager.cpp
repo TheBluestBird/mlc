@@ -21,10 +21,23 @@ TaskManager::TaskManager(const std::shared_ptr<Settings>& settings, const std::s
 TaskManager::~TaskManager() {
 }
 
-void TaskManager::queueJob(const std::filesystem::path& source, const std::filesystem::path& destination) {
+void TaskManager::queueConvert(const std::filesystem::path& source, const std::filesystem::path& destination) {
     std::unique_lock<std::mutex> lock(queueMutex);
-    jobs.emplace(source, destination);
+    jobs.emplace(Job::convert, source, destination);
 
+    ++maxTasks;
+    logger->setStatusMessage(std::to_string(completeTasks) + "/" + std::to_string(maxTasks));
+
+    lock.unlock();
+    loopConditional.notify_one();
+}
+
+void TaskManager::queueCopy(const std::filesystem::path& source, const std::filesystem::path& destination) {
+    if (!settings->matchNonMusic(source.filename()))
+        return;
+
+    std::unique_lock<std::mutex> lock(queueMutex);
+    jobs.emplace(Job::copy, source, destination);
     ++maxTasks;
     logger->setStatusMessage(std::to_string(completeTasks) + "/" + std::to_string(maxTasks));
 
@@ -61,28 +74,16 @@ void TaskManager::loop() {
         if (terminate)
             return;
 
-        std::pair<std::string, std::string> pair = jobs.front();
+        Job job = jobs.front();
         ++busyThreads;
         jobs.pop();
         lock.unlock();
 
-        JobResult result;
-        switch (settings->getType()) {
-            case Settings::mp3:
-                result = mp3Job(pair.first, pair.second + ".mp3", settings->getLogLevel());
-                break;
-            default:
-                break;
-        }
+        JobResult result = execute(job);
 
         lock.lock();
         ++completeTasks;
-        logger->printNested(
-            result.first ? "Encoding complete but there are messages about it" : "Encoding failed!",
-            {"Source: \t" + pair.first, "Destination: \t" + pair.second},
-            result.second,
-            std::to_string(completeTasks) + "/" + std::to_string(maxTasks)
-        );
+        printResilt(job, result);
         --busyThreads;
         lock.unlock();
         waitConditional.notify_all();
@@ -118,14 +119,72 @@ unsigned int TaskManager::getCompleteTasks() const {
     return completeTasks;
 }
 
+TaskManager::JobResult TaskManager::execute(const Job& job) {
+    switch (job.type) {
+        case Job::copy:
+            return copyJob(job, settings->getLogLevel());
+        case Job::convert:
+            switch (settings->getType()) {
+                case Settings::mp3:
+                    return mp3Job(job, settings->getLogLevel());
+                default:
+                    break;
+            }
+    }
+
+    return {false, {
+        {Logger::Severity::error, "Unknown job type: " + std::to_string(job.type)}
+    }};
+}
+
+void TaskManager::printResilt(const TaskManager::Job& job, const TaskManager::JobResult& result) {
+    std::string msg;
+    switch (job.type) {
+        case Job::copy:
+            if (result.first)
+                msg = "File copy complete, but there are messages about it:";
+            else
+                msg = "File copy failed!";
+            break;
+        case Job::convert:
+            if (result.first)
+                msg = "Encoding complete but there are messages about it:";
+            else
+                msg = "Encoding failed!";
+            break;
+    }
+
+    logger->printNested(
+        msg,
+        {"Source: \t" + job.source.string(), "Destination: \t" + job.destination.string()},
+        result.second,
+        std::to_string(completeTasks) + "/" + std::to_string(maxTasks)
+    );
+}
+
 TaskManager::JobResult TaskManager::mp3Job(
-    const std::filesystem::path& source,
-    const std::filesystem::path& destination,
+    const TaskManager::Job& job,
     Logger::Severity logLevel)
 {
     FLACtoMP3 convertor(logLevel);
-    convertor.setInputFile(source);
-    convertor.setOutputFile(destination);
+    convertor.setInputFile(job.source);
+    convertor.setOutputFile(job.destination.string() + ".mp3");
     bool result = convertor.run();
     return {result, convertor.getHistory()};
 }
+
+TaskManager::JobResult TaskManager::copyJob(const TaskManager::Job& job, Logger::Severity logLevel) {
+    (void)(logLevel);
+    bool success = std::filesystem::copy_file(
+        job.source,
+        job.destination,
+        std::filesystem::copy_options::overwrite_existing
+    );
+
+    return {success, {}};
+}
+
+TaskManager::Job::Job(Type type, const std::filesystem::path& source, std::filesystem::path destination):
+    type(type),
+    source(source),
+    destination(destination) {}

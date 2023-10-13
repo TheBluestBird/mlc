@@ -18,13 +18,15 @@
 #include "logger/printer.h"
 
 class TaskManager {
-    typedef std::pair<bool, std::list<Logger::Message>> JobResult;
+    using JobResult = std::pair<bool, std::list<Logger::Message>>;
+    struct Job;
 public:
     TaskManager(const std::shared_ptr<Settings>& settings, const std::shared_ptr<Printer>& logger);
     ~TaskManager();
 
     void start();
-    void queueJob(const std::filesystem::path& source, const std::filesystem::path& destination);
+    void queueConvert(const std::filesystem::path& source, const std::filesystem::path& destination);
+    void queueCopy(const std::filesystem::path& source, const std::filesystem::path& destination);
     void stop();
     bool busy() const;
     void wait();
@@ -33,7 +35,11 @@ public:
 
 private:
     void loop();
-    static JobResult mp3Job(const std::filesystem::path& source, const std::filesystem::path& destination, Logger::Severity logLevel);
+    JobResult execute(const Job& job);
+    void printResilt(const Job& job, const JobResult& result);
+    static JobResult mp3Job(const Job& job, Logger::Severity logLevel);
+    static JobResult copyJob(const Job& job, Logger::Severity logLevel);
+
 private:
     std::shared_ptr<Settings> settings;
     std::shared_ptr<Printer> logger;
@@ -46,7 +52,17 @@ private:
     std::condition_variable loopConditional;
     std::condition_variable waitConditional;
     std::vector<std::thread> threads;
-    std::queue<std::pair<std::filesystem::path, std::filesystem::path>> jobs;
+    std::queue<Job> jobs;
 
 };
 
+struct TaskManager::Job {
+    enum Type {
+        copy,
+        convert
+    };
+    Job(Type type, const std::filesystem::path& source, std::filesystem::path destination);
+    Type type;
+    std::filesystem::path source;
+    std::filesystem::path destination;
+};

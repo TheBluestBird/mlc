@@ -6,22 +6,15 @@ namespace fs = std::filesystem;
 
 static const std::string flac(".flac");
 
-Collection::Collection(const std::string& path, TaskManager* tm) :
-    path(fs::canonical(path)),
+Collection::Collection(const std::filesystem::path& path, TaskManager* tm) :
+    path(path),
     countMusical(0),
     counted(false),
     taskManager(tm)
 {}
 
-Collection::Collection(const std::filesystem::path& path, TaskManager* tm):
-    path(fs::canonical(path)),
-    countMusical(0),
-    counted(false),
-    taskManager(tm)
+Collection::~Collection()
 {}
-
-Collection::~Collection() {
-}
 
 void Collection::list() const {
     if (fs::is_regular_file(path))
@@ -71,13 +64,10 @@ void Collection::convert(const std::string& outPath) {
         switch (entry.status().type()) {
             case fs::file_type::regular: {
                 fs::path sourcePath = entry.path();
-                fs::path dstPath = out / sourcePath.stem();
                 if (isMusic(sourcePath))
-                    taskManager->queueJob(sourcePath, dstPath);
+                    taskManager->queueConvert(sourcePath, out / sourcePath.stem());
                 else
-                    fs::copy_file(sourcePath, dstPath, fs::copy_options::overwrite_existing);
-
-                //std::cout << sourcePath << " => " << dstPath << std::endl;
+                    taskManager->queueCopy(sourcePath, out / sourcePath.filename());
             }   break;
             case fs::file_type::directory: {
                 fs::path sourcePath = entry.path();

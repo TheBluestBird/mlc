@@ -10,7 +10,6 @@ class TaskManager;
 
 class Collection {
 public:
-    Collection(const std::string& path, TaskManager* tm = nullptr);
     Collection(const std::filesystem::path& path, TaskManager* tm = nullptr);
     ~Collection();
 

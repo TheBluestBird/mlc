@@ -1,5 +1,8 @@
 # Changelog
 
+## MLC 1.3.3 (UNRELEASED)
+- Regex to specify non-music files to copy
+
 ## MLC 1.3.2 (October 10, 2023)
 - A release purely for CI
 

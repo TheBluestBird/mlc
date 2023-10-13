@@ -16,6 +16,7 @@ enum class Option {
     source,
     destination,
     parallel,
+    filesToCopy,
     _optionsSize
 };
 
@@ -36,7 +37,8 @@ constexpr std::array<std::string_view, static_cast<int>(Option::_optionsSize)> o
     "type",
     "source",
     "destination",
-    "parallel"
+    "parallel",
+    "filesToCopy"
 });
 
 constexpr std::array<std::string_view, Settings::_typesSize> types({
@@ -72,7 +74,10 @@ Settings::Settings(int argc, char ** argv):
     outputType(std::nullopt),
     input(std::nullopt),
     output(std::nullopt),
-    logLevel(std::nullopt)
+    logLevel(std::nullopt),
+    configPath(std::nullopt),
+    threads(std::nullopt),
+    nonMusic(std::nullopt)
 {
     for (int i = 1; i < argc; ++i)
         arguments.push_back(argv[i]);
@@ -264,6 +269,17 @@ void Settings::readConfigLine(const std::string& line) {
             if (!threads.has_value() && stream >> count)
                 threads = count;
         }   break;
+        case Option::filesToCopy: {
+            std::string regex;
+            if (!nonMusic.has_value() && stream >> regex) {
+                if (regex == "all")
+                    regex = "";
+                else if (regex == "none")
+                    regex = "a^";
+
+                nonMusic = regex;
+            }
+        }   break;
         default:
             break;
     }
@@ -299,3 +315,11 @@ std::string Settings::resolvePath(const std::string& line) {
     else
         return line;
 }
+
+bool Settings::matchNonMusic(const std::string& fileName) const {
+    if (nonMusic.has_value())
+        return std::regex_search(fileName, nonMusic.value());
+    else
+        return true;
+}
+
