@@ -1,6 +1,6 @@
 #pragma once
 
-#include <FLAC/stream_decoder.h>
+#include <stream_decoder.h>
 #include <lame.h>
 #include <jpeglib.h>
 #include <id3v2tag.h>

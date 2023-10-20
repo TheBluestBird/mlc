@@ -1,0 +1,24 @@
+find_path(TAGLIB_INCLUDE_DIR taglib/id3v2tag.h)
+find_library(TAGLIB_LIBRARIES taglib NAMES TAGLIB tag)
+
+if(TAGLIB_INCLUDE_DIR AND TAGLIB_LIBRARIES)
+	set(TAGLIB_FOUND TRUE)
+endif()
+
+if(TAGLIB_FOUND)
+	add_library(TAGLIB::TAGLIB SHARED IMPORTED)
+	set_target_properties(TAGLIB::TAGLIB PROPERTIES
+		IMPORTED_LOCATION "${TAGLIB_LIBRARIES}"
+		INTERFACE_INCLUDE_DIRECTORIES "${FLAC_INCLUDE_DIR}/taglib"
+		INTERFACE_LINK_LIBRARIES "${TAGLIB_LIBRARIES}"
+	)
+	if (NOT TAGLIB_FIND_QUIETLY)
+		message(STATUS "Found TAGLIB includes:	${FLAC_INCLUDE_DIR}/taglib")
+		message(STATUS "Found TAGLIB library:	${TAGLIB_LIBRARIES}")
+	endif ()
+else()
+	if (TAGLIB_FIND_REQUIRED)
+		message(FATAL_ERROR "Could NOT find TAGLIB development files")
+	endif ()
+endif()
+

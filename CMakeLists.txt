@@ -26,23 +26,21 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
-find_package(PkgConfig REQUIRED)
 find_package(FLAC REQUIRED)
 find_package(JPEG REQUIRED)
+find_package(LAME REQUIRED)
+find_package(TAGLIB REQUIRED)
 
-pkg_check_modules(LAME REQUIRED IMPORTED_TARGET lame)
-pkg_check_modules(TAGLIB REQUIRED IMPORTED_TARGET taglib)
-
-add_executable(mlc)
+add_executable(${PROJECT_NAME})
 target_compile_options(${PROJECT_NAME} PRIVATE ${COMPILE_OPTIONS})
 
 add_subdirectory(src)
 
-target_link_libraries(mlc
+target_link_libraries(${PROJECT_NAME}
     FLAC::FLAC
-    PkgConfig::LAME
+    LAME::LAME
     JPEG::JPEG
-    PkgConfig::TAGLIB
+    TAGLIB::TAGLIB
 )
 
-install(TARGETS mlc RUNTIME DESTINATION bin)
+install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
