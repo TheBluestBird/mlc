@@ -25,11 +25,13 @@ message("Compilation options: " ${COMPILE_OPTIONS})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
+set(THREADS_PREFER_PTHREAD_FLAG ON)
 
 find_package(FLAC REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(LAME REQUIRED)
 find_package(TAGLIB REQUIRED)
+find_package(Threads REQUIRED)
 
 add_executable(${PROJECT_NAME})
 target_compile_options(${PROJECT_NAME} PRIVATE ${COMPILE_OPTIONS})
@@ -41,6 +43,7 @@ target_link_libraries(${PROJECT_NAME}
     LAME::LAME
     JPEG::JPEG
     TAGLIB::TAGLIB
+    Threads::Threads
 )
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
