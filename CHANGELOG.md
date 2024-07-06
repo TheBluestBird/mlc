@@ -1,5 +1,8 @@
 # Changelog
 
+## MLC 1.3.4 (UNRELEASED)
+- Build fixes
+
 ## MLC 1.3.3 (October 13, 2023)
 - Regex to specify non-music files to copy
 - Encoding settings (VBR/CBR, encoding quality, output quality)
@@ -23,7 +26,7 @@
 
 ## MLC 1.1.0 (July 23, 2023)
 - New logging system
-- Artist, Album artist, Album and Title are now utf16 encoded, should fix broten titles
+- Artist, Album artist, Album and Title are now utf16 encoded, should fix broken titles
 - BPM tag is now rounded, as it supposed to be by spec
 - Lyrics is not set now for USLT tag for unsychronized lyrics is not supported in LAME
 - Date bug fix, it was MMDD instead of standard DDMM

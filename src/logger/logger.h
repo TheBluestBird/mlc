@@ -13,7 +13,7 @@ public:
         warning,
         error,
         fatal,
-        _sevetirySize
+        _severitySize 
     };
     using Message = std::pair<Severity, std::string>;
 

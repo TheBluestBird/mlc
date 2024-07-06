@@ -20,23 +20,23 @@ Flags:
                 - sets action to help, and prints this page
 
 Examples:
-    `mlc ~/Music comile/latest`
+    `mlc ~/Music compile/latest`
                 - reads config file from `~/.config/mlc.conf`
                 - if there was not - creates default that changes nothing
-                - creates directory `conpile` in the CURRENT directory if it was not created before
-                - create `latest` directory in `compile` dirrectory if it was not created before
+                - creates directory `compile` in the CURRENT directory if it was not created before
+                - create `latest` directory in `compile` directory if it was not created before
                 - searches for music in `~/Music` directory
-                - converts all music to `comile/latest` directory
-                - copies all other files found in `~/Music` to `comile/latest`
-                - any file name overlap will be overriden
+                - converts all music to `compile/latest` directory
+                - copies all other files found in `~/Music` to `compile/latest`
+                - any file name overlap will be overridden
 
     `mlc config > myConfig.conf`
                 - prints default config to standard output
                 - unix operator `>` redirects output to a file `myConfig.conf`
 
-    `mlc rip -c myConfig.conf`
+    `mlc convert -c myConfig.conf`
                 - reads file `myConfig.conf` from current directory
                 - if `myConfig.conf` has a valid `source` entry - uses it and uses `rip` as destination
                 - if `myConfig.conf` has a valid `destination` entry - uses it and uses `rip` as source
-                - if both present (don't do this way) - it depends on the order, who comes first - defines behaviour
+                - if both present (don't do this way) - it depends on the order, who comes first - defines behavior
                 - the rest is the same from the first example apart from default config

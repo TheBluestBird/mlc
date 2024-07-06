@@ -203,14 +203,14 @@ unsigned char Settings::getOutputQuality() const {
     if (outputQuality.has_value())
         return outputQuality.value();
     else
-        return minQuality;      //actually, it means max possible quality
+        return minQuality;      //it means max possible quality, min is for min enum value
 }
 
 unsigned char Settings::getEncodingQuality() const {
     if (encodingQuality.has_value())
         return encodingQuality.value();
     else
-        return minQuality;      //actually, it means max possible quality
+        return minQuality;      //it means max possible quality, min is for min enum value
 }
 
 bool Settings::getVBR() const {
@@ -269,7 +269,7 @@ void Settings::readConfigLine(const std::string& line) {
             std::string lv;
             if (!logLevel.has_value() && stream >> lv) {
                 Logger::Severity level = Logger::stringToSeverity(lv);
-                if (level < Logger::Severity::_sevetirySize)
+                if (level < Logger::Severity::_severitySize)
                     logLevel = level;
             }
         }   break;

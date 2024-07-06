@@ -4,7 +4,7 @@
 #include <string_view>
 #include <iostream>
 
-constexpr const std::array<std::string_view, static_cast<int>(Logger::Severity::_sevetirySize)> logSettings({
+constexpr const std::array<std::string_view, static_cast<int>(Logger::Severity::_severitySize)> logSettings({
     /*debug*/   "\e[90m",
     /*info*/    "\e[32m",
     /*minor*/   "\e[34m",
@@ -14,7 +14,7 @@ constexpr const std::array<std::string_view, static_cast<int>(Logger::Severity::
     /*fatal*/   "\e[91m"
 });
 
-constexpr const std::array<std::string_view, static_cast<int>(Logger::Severity::_sevetirySize)> logHeaders({
+constexpr const std::array<std::string_view, static_cast<int>(Logger::Severity::_severitySize)> logHeaders({
     /*debug*/   "DEBUG: ",
     /*info*/    "INFO: ",
     /*minor*/   "MINOR: ",

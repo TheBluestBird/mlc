@@ -4,7 +4,7 @@
 #include <string_view>
 #include <algorithm>
 
-constexpr std::array<std::string_view, static_cast<int>(Logger::Severity::_sevetirySize)> levels({
+constexpr std::array<std::string_view, static_cast<int>(Logger::Severity::_severitySize)> levels({
         "debug",
         "info",
         "minor",
@@ -46,8 +46,8 @@ void Logger::fatal(const std::string& comment, bool colored) const {
 
 Logger::Severity Logger::stringToSeverity(const std::string& line) {
     unsigned char dist = std::distance(levels.begin(), std::find(levels.begin(), levels.end(), line));
-    if (dist < static_cast<unsigned char>(Severity::_sevetirySize))
+    if (dist < static_cast<unsigned char>(Severity::_severitySize))
         return static_cast<Severity>(dist);
 
-    return Severity::_sevetirySize;
+    return Severity::_severitySize;
 }
