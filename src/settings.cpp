@@ -17,6 +17,7 @@ enum class Option {
     destination,
     parallel,
     filesToCopy,
+    exclude,
     encodingQuality,
     outputQuality,
     vbr,
@@ -42,6 +43,7 @@ constexpr std::array<std::string_view, static_cast<int>(Option::_optionsSize)> o
     "destination",
     "parallel",
     "filesToCopy",
+    "exclude",
     "encodingQuality",
     "outputQuality",
     "vbr"
@@ -264,69 +266,74 @@ void Settings::readConfigLine(const std::string& line) {
     if (option == Option::_optionsSize)
         return;
 
+    std::string value;
+    std::getline(stream >> std::ws, value);
+    strip(value);
+    if (value.empty())
+        return;
+
     switch (option) {
         case Option::level: {
             std::string lv;
-            if (!logLevel.has_value() && stream >> lv) {
+            if (!logLevel.has_value() && std::istringstream(value) >> lv) {
                 Logger::Severity level = Logger::stringToSeverity(lv);
                 if (level < Logger::Severity::_severitySize)
                     logLevel = level;
             }
         }   break;
         case Option::type: {
-            std::string lv;
-            if (!outputType.has_value() && stream >> lv) {
-                Type type = stringToType(lv);
+            std::string tp;
+            if (!outputType.has_value() && std::istringstream(value) >> tp) {
+                Type type = stringToType(tp);
                 if (type < _typesSize)
                     outputType = type;
             }
         }   break;
         case Option::source: {
-            std::string path;
-            if (stream >> path) {
-                if (!input.has_value()) {
-                    input = path;
-                } else if (!output.has_value()) {
-                    output = input;
-                    input = path;
-                }
+            if (!input.has_value()) {
+                input = value;
+            } else if (!output.has_value()) {
+                output = input;
+                input = value;
             }
         }   break;
         case Option::destination: {
-            std::string path;
-            if (!output.has_value() && stream >> path)
-                output = path;
+            if (!output.has_value())
+                output = value;
         }   break;
         case Option::parallel: {
             unsigned int count;
-            if (!threads.has_value() && stream >> count)
+            if (!threads.has_value() && std::istringstream(value) >> count)
                 threads = count;
         }   break;
         case Option::filesToCopy: {
-            std::string regex;
-            if (!nonMusic.has_value() && stream >> regex) {
-                if (regex == "all")
-                    regex = "";
-                else if (regex == "none")
-                    regex = "a^";
+            if (!nonMusic.has_value()) {
+                if (value == "all")
+                    value = "";
+                else if (value == "none")
+                    value = "a^";
 
-                nonMusic = regex;
+                nonMusic = value;
             }
         }   break;
+        case Option::exclude: {
+            if (!excluded.has_value()) 
+                excluded = value;
+        }   break;
         case Option::outputQuality: {
-            unsigned int value;
-            if (!outputQuality.has_value() && stream >> value)
-                outputQuality = std::clamp(value, minQuality, maxQuality);
+            unsigned int quality;
+            if (!outputQuality.has_value() && std::istringstream(value) >> quality)
+                outputQuality = std::clamp(quality, minQuality, maxQuality);
         }   break;
         case Option::encodingQuality: {
-            unsigned int value;
-            if (!encodingQuality.has_value() && stream >> value)
-                encodingQuality = std::clamp(value, minQuality, maxQuality);
+            unsigned int quality;
+            if (!encodingQuality.has_value() && std::istringstream(value) >> quality)
+                encodingQuality = std::clamp(quality, minQuality, maxQuality);
         }   break;
         case Option::vbr: {
-            bool value;
-            if (!vbr.has_value() && stream >> std::boolalpha >> value)
-                vbr = value;
+            bool vb;
+            if (!vbr.has_value() && std::istringstream(value) >> std::boolalpha >> vb)
+                vbr = vb;
         }   break;
         default:
             break;
@@ -365,9 +372,16 @@ std::string Settings::resolvePath(const std::string& line) {
 }
 
 bool Settings::matchNonMusic(const std::string& fileName) const {
-    if (nonMusic.has_value())
-        return std::regex_search(fileName, nonMusic.value());
-    else
+    if (!nonMusic.has_value())
         return true;
+
+    return std::regex_search(fileName, nonMusic.value());
+}
+
+bool Settings::isExcluded(const std::string& path) const {
+    if (!excluded.has_value())
+        return false;
+
+    return std::regex_search(path, excluded.value());
 }
 

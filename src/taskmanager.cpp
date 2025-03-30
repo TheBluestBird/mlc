@@ -22,6 +22,9 @@ TaskManager::~TaskManager() {
 }
 
 void TaskManager::queueConvert(const std::filesystem::path& source, const std::filesystem::path& destination) {
+    if (settings->isExcluded(source))
+        return;
+
     std::unique_lock<std::mutex> lock(queueMutex);
     jobs.emplace(Job::convert, source, destination);
 
@@ -83,7 +86,7 @@ void TaskManager::loop() {
 
         lock.lock();
         ++completeTasks;
-        printResilt(job, result);
+        printResult(job, result);
         --busyThreads;
         lock.unlock();
         waitConditional.notify_all();
@@ -138,7 +141,7 @@ TaskManager::JobResult TaskManager::execute(Job& job) {
     }};
 }
 
-void TaskManager::printResilt(const TaskManager::Job& job, const TaskManager::JobResult& result) {
+void TaskManager::printResult(const TaskManager::Job& job, const TaskManager::JobResult& result) {
     std::string msg;
     switch (job.type) {
         case Job::copy:

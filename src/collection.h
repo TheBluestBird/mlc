@@ -3,14 +3,16 @@
 #include <string>
 #include <iostream>
 #include <filesystem>
+#include <memory>
 
+#include "settings.h"
 #include "flactomp3.h"
 
 class TaskManager;
 
 class Collection {
 public:
-    Collection(const std::filesystem::path& path, TaskManager* tm = nullptr);
+    Collection(const std::filesystem::path& path, const std::shared_ptr<TaskManager>& tm, const std::shared_ptr<Settings>& st);
     ~Collection();
 
     void list() const;
@@ -24,6 +26,7 @@ private:
     std::filesystem::path path;
     mutable uint32_t countMusical;
     mutable bool counted;
-    TaskManager* taskManager;
+    std::shared_ptr<TaskManager> taskManager;
+    std::shared_ptr<Settings> settings; 
 };
 

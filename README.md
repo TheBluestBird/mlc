@@ -13,13 +13,13 @@ This is a program to compile your local lossless music library to lossy formats
 
 ### Building
 
-```sh
-$ git clone https://git.macaw.me/blue/mlc
-$ cd mlc
-$ mkdir build
-$ cd build
-$ cmake ..
-$ cmake --build .
+```shell
+git clone https://git.macaw.me/blue/mlc
+cd mlc
+mkdir build
+cd build
+cmake ..
+cmake --build .
 ```
 
 ### Usage
@@ -27,19 +27,19 @@ $ cmake --build .
 Just to compile lossless library to lossy you can use this command
 assuming you are in the same directory you have just built `MLC`:
 
-```
+```shell
 ./mlc path/to/lossless/library path/to/store/lossy/library
 ```
 
 There are more ways to use `MLC`, please refer to help for more options:
 
-```sh
-$ ./mlc help
+```shell
+./mlc help
 # or
-$ ./mlc --help
+./mlc --help
 #
 # or
-$ ./mlc -h
+./mlc -h
 ```
 
 `MLC` has a way to configure conversion process, it will generate global for you user config on the first launch.
@@ -49,14 +49,16 @@ You can also make local configs for each directory you launch mlc from.
 
 To output the default config run the following, assuming you are in the same directory you have just built `MLC`:
 
-```sh
-$ ./mlc config
+```shell
+./mlc config #to print
+#or
+./mlc config > config.conf #to save to config.conf in current directory
 ```
 
 To use non default config run the following, assuming you are in the same directory you have just built `MLC`:
 
-```sh
-$ ./mlc path/to/lossless/library path/to/store/lossy/library -c path/to/config/file
+```shell
+./mlc path/to/lossless/library path/to/store/lossy/library -c path/to/config/file
 ```
 
 ### About

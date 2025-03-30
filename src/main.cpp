@@ -57,16 +57,16 @@ int main(int argc, char **argv) {
     }
 
     logger->setSeverity(settings->getLogLevel());
-    TaskManager taskManager(settings, logger);
-    taskManager.start();
+    std::shared_ptr<TaskManager> taskManager = std::make_shared<TaskManager>(settings, logger);
+    taskManager->start();
 
     std::chrono::time_point start = std::chrono::system_clock::now();
-    Collection collection(input, &taskManager);
+    Collection collection(input, taskManager, settings);
     collection.convert(output);
 
-    taskManager.wait();
+    taskManager->wait();
     std::cout << std::endl;
-    taskManager.stop();
+    taskManager->stop();
 
     std::chrono::time_point end = std::chrono::system_clock::now();
     std::chrono::duration<double> seconds = end - start;

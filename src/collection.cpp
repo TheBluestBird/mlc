@@ -6,11 +6,12 @@ namespace fs = std::filesystem;
 
 static const std::string flac(".flac");
 
-Collection::Collection(const std::filesystem::path& path, TaskManager* tm) :
+Collection::Collection(const std::filesystem::path& path, const std::shared_ptr<TaskManager>& tm, const std::shared_ptr<Settings>& st):
     path(path),
     countMusical(0),
     counted(false),
-    taskManager(tm)
+    taskManager(tm),
+    settings(st)
 {}
 
 Collection::~Collection()
@@ -33,13 +34,16 @@ uint32_t Collection::countMusicFiles() const {
             ++countMusical;
     } else if (fs::is_directory(path)) {
         for (const fs::directory_entry& entry : fs::directory_iterator(path)) {
+            if (settings->isExcluded(entry.path()))
+                continue;
+
             switch (entry.status().type()) {
                 case fs::file_type::regular:
                     if (isMusic(entry.path()))
                         ++countMusical;
                 break;
                 case fs::file_type::directory: {
-                    Collection collection(entry.path());
+                    Collection collection(entry.path(), taskManager, settings);
                     countMusical += collection.countMusicFiles();
                 }   break;
                 default:
@@ -53,25 +57,24 @@ uint32_t Collection::countMusicFiles() const {
 }
 
 void Collection::convert(const std::string& outPath) {
-    if (taskManager == nullptr)
-        throw 6;
-
     fs::path out = fs::absolute(outPath);
 
     fs::create_directories(out);
     out = fs::canonical(outPath);
     for (const fs::directory_entry& entry : fs::directory_iterator(path)) {
+        fs::path sourcePath = entry.path();
+        if (settings->isExcluded(sourcePath))
+            continue;
+
         switch (entry.status().type()) {
             case fs::file_type::regular: {
-                fs::path sourcePath = entry.path();
                 if (isMusic(sourcePath))
                     taskManager->queueConvert(sourcePath, out / sourcePath.stem());
                 else
                     taskManager->queueCopy(sourcePath, out / sourcePath.filename());
             }   break;
             case fs::file_type::directory: {
-                fs::path sourcePath = entry.path();
-                Collection collection(sourcePath, taskManager);
+                Collection collection(sourcePath, taskManager, settings);
                 fs::path::iterator itr = sourcePath.end();
                 --itr;
                 collection.convert(std::string(out / *itr));

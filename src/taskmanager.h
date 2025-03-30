@@ -36,7 +36,7 @@ public:
 private:
     void loop();
     JobResult execute(Job& job);
-    void printResilt(const Job& job, const JobResult& result);
+    void printResult(const Job& job, const JobResult& result);
     static JobResult mp3Job(const Job& job, const std::shared_ptr<Settings>& settings);
     static JobResult copyJob(const Job& job, const std::shared_ptr<Settings>& settings);
 
