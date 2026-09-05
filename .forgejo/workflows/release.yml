@@ -1,5 +1,5 @@
 name: MLC Release workflow
-run-name: ${{ gitea.actor }} is running MLC Release workflow on release ${{ gitea.event.release.tag_name }}
+run-name: ${{ forge.actor }} is running MLC Release workflow on release ${{ forge.event.release.tag_name }}
 on:
   release:
     types: [published]
@@ -9,10 +9,10 @@ jobs:
     runs-on: archlinux
     steps:
       - name: Download the release tarball
-        run: curl -sL ${{ gitea.server_url }}/${{ gitea.repository }}/archive/${{ gitea.event.release.tag_name }}.tar.gz --output tarball.tar.gz
+        run: curl -sL ${{ forge.server_url }}/${{ forge.repository }}/archive/${{ forge.event.release.tag_name }}.tar.gz --output tarball.tar.gz
 
       - name: Calculate SHA256 for the tarball
-        run: echo "tbSum=$(sha256sum tarball.tar.gz | cut -d ' ' -f 1)" >> $GITHUB_ENV
+        run: echo "tbSum=$(sha256sum tarball.tar.gz | cut -d ' ' -f 1)" >> $FORGEJO_ENV
 
       - name: Unarchive tarball
         run: tar -xvzf tarball.tar.gz
@@ -41,5 +41,5 @@ jobs:
         working-directory: aur
         run: |
           git add PKGBUILD .SRCINFO
-          git commit -m "${{ gitea.event.release.body }}"
+          git commit -m "${{ forge.event.release.body }}"
           GIT_SSH_COMMAND="ssh -i ../key -o 'IdentitiesOnly yes' -o 'StrictHostKeyChecking no'" git push
