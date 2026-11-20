@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 project(
     mlc
-    VERSION 1.3.4
+    VERSION 1.3.5
     DESCRIPTION "Media Library Compiler: converts your media library to a lossy compilation"
     LANGUAGES CXX
 )

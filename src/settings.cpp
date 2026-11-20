@@ -21,6 +21,7 @@ enum class Option {
     encodingQuality,
     outputQuality,
     vbr,
+    multipleArtists,
     _optionsSize
 };
 
@@ -46,7 +47,13 @@ constexpr std::array<std::string_view, static_cast<int>(Option::_optionsSize)> o
     "exclude",
     "encodingQuality",
     "outputQuality",
-    "vbr"
+    "vbr",
+    "multipleArtists"
+});
+
+constexpr std::array<std::string_view, Settings::_multipleArtistsSize> multipleArtistsValues({
+    "first",
+    "all"
 });
 
 constexpr std::array<std::string_view, Settings::_typesSize> types({
@@ -91,7 +98,8 @@ Settings::Settings(int argc, char ** argv):
     nonMusic(std::nullopt),
     encodingQuality(std::nullopt),
     outputQuality(std::nullopt),
-    vbr(std::nullopt)
+    vbr(std::nullopt),
+    multipleArtists(std::nullopt)
 {
     for (int i = 1; i < argc; ++i)
         arguments.push_back(argv[i]);
@@ -222,6 +230,13 @@ bool Settings::getVBR() const {
         return true;
 }
 
+Settings::MultipleArtists Settings::getMultipleArtists() const {
+    if (multipleArtists.has_value())
+        return multipleArtists.value();
+    else
+        return firstArtist;
+}
+
 void Settings::strip(std::string& line) {
     line.erase(line.begin(), std::find_if(line.begin(), line.end(), std::not_fn(is_space)));
     line.erase(std::find_if(line.rbegin(), line.rend(), std::not_fn(is_space)).base(), line.end());
@@ -334,6 +349,14 @@ void Settings::readConfigLine(const std::string& line) {
             bool vb;
             if (!vbr.has_value() && std::istringstream(value) >> std::boolalpha >> vb)
                 vbr = vb;
+        }   break;
+        case Option::multipleArtists: {
+            std::string ma;
+            if (!multipleArtists.has_value() && std::istringstream(value) >> ma) {
+                unsigned char dist = std::distance(multipleArtistsValues.begin(), std::find(multipleArtistsValues.begin(), multipleArtistsValues.end(), ma));
+                if (dist < _multipleArtistsSize)
+                    multipleArtists = static_cast<MultipleArtists>(dist);
+            }
         }   break;
         default:
             break;

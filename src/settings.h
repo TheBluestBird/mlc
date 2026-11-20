@@ -29,6 +29,12 @@ public:
         _typesSize
     };
 
+    enum MultipleArtists {
+        firstArtist,
+        allArtists,
+        _multipleArtistsSize
+    };
+
     Settings(int argc, char **argv);
 
     std::string getInput() const;
@@ -44,6 +50,7 @@ public:
     unsigned char getEncodingQuality() const;
     unsigned char getOutputQuality() const;
     bool getVBR() const;
+    MultipleArtists getMultipleArtists() const;
 
     bool readConfigFile();
     void readConfigLine(const std::string& line);
@@ -74,4 +81,5 @@ private:
     std::optional<unsigned char> encodingQuality;
     std::optional<unsigned char> outputQuality;
     std::optional<bool> vbr;
+    std::optional<MultipleArtists> multipleArtists;
 };

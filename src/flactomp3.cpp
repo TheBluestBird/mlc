@@ -1,6 +1,8 @@
 #include "flactomp3.h"
 
 #include <cmath>
+#include <algorithm>
+#include <cctype>
 
 #include <tpropertymap.h>
 #include <attachedpictureframe.h>
@@ -42,6 +44,7 @@ FLACtoMP3::FLACtoMP3(Logger::Severity severity, uint8_t size) :
     outputBufferSize(0),
     outputInitilized(false),
     downscaleAlbumArt(false),
+    allArtists(false),
     id3v2tag()
 {
 }
@@ -52,15 +55,29 @@ FLACtoMP3::~FLACtoMP3() {
 }
 
 bool FLACtoMP3::run() {
+    if (statusFLAC != FLAC__STREAM_DECODER_INIT_STATUS_OK) {
+        logger.fatal("Error initializing FLAC decoder: " + std::string(FLAC__StreamDecoderInitStatusString[statusFLAC]));
+        return false;
+    }
+
     FLAC__bool ok = FLAC__stream_decoder_process_until_end_of_stream(decoder);
-    uint32_t fileSize;
+    if (ok && !outputInitilized) {
+        logger.fatal("The file doesn't seem to contain any audio, nothing was written");
+        ok = false;
+    }
+
+    uint32_t fileSize = 0;
     if (ok) {
         if (pcmCounter > 0)
-            flush();
+            ok = flush();
 
         int nwrite = lame_encode_flush(encoder, outputBuffer, outputBufferSize);
-        fwrite((char*)outputBuffer, nwrite, 1, output);
-
+        if (nwrite > 0) {
+            fwrite((char*)outputBuffer, nwrite, 1, output);
+        } else if (nwrite < 0) {
+            logger.fatal("final encoding flush failed. Code = " + std::to_string(nwrite));
+            ok = false;
+        }
 
         fileSize = ftell(output);
         lame_mp3_tags_fid(encoder, output);
@@ -112,6 +129,10 @@ void FLACtoMP3::setOutputFile(const std::string& path) {
 
 }
 
+void FLACtoMP3::setAllArtists(bool all) {
+    allArtists = all;
+}
+
 void FLACtoMP3::setParameters(unsigned char encodingQuality, unsigned char outputQuality, bool vbr) {
     if (vbr) {
         logger.info("Encoding to VBR with quality " + std::to_string(outputQuality));
@@ -150,7 +171,7 @@ bool FLACtoMP3::initializeOutput() {
         flacMaxBlockSize = flacDefaultMaxBlockSize;
 
     pcmSize = lame_get_num_channels(encoder) * flacMaxBlockSize * bufferMultiplier;
-    outputBufferSize = pcmSize / 2;
+    outputBufferSize = (pcmSize / lame_get_num_channels(encoder)) * 5 / 4 + 7200;
 
     TagLib::ByteVector vector = id3v2tag.render();
     fwrite((const char*)vector.data(), vector.size(), 1, output);
@@ -184,6 +205,8 @@ void FLACtoMP3::processTags(const FLAC__StreamMetadata_VorbisComment& tags) {
             continue;
         }
         std::string key(comm.substr(0, ePos));
+        std::transform(key.begin(), key.end(), key.begin(),
+            [](unsigned char ch) { return std::toupper(ch); });
         std::string value(comm.substr(ePos + 1));
 
         if (key == "BPM") {                                     //somehow TagLib lets BPM be fractured
@@ -192,11 +215,16 @@ void FLACtoMP3::processTags(const FLAC__StreamMetadata_VorbisComment& tags) {
                 value = value.substr(0, dotPos);
         }
 
+        if (!allArtists && key == "ARTIST" && props.contains(key)) {
+            logger.minor("skipping additional artist \"" + value + "\"");
+            continue;
+        }
+
         bool success = true;
         std::map<std::string, std::string>::const_iterator itr = textIdentificationReplacements.find(key);
         if (itr != textIdentificationReplacements.end()) {
-            TagLib::ID3v2::TextIdentificationFrame* frame = new TagLib::ID3v2::TextIdentificationFrame(itr->second.c_str());
-            frame->setText(value);
+            TagLib::ID3v2::TextIdentificationFrame* frame = new TagLib::ID3v2::TextIdentificationFrame(itr->second.c_str(), TagLib::String::UTF8);
+            frame->setText(TagLib::String(value, TagLib::String::UTF8));
             customFrames.push_back(frame);
             logger.debug("tag \"" + key + "\" was remapped to \"" + itr->second + "\"");
         } else {
@@ -294,19 +322,26 @@ bool FLACtoMP3::scaleJPEG(const FLAC__StreamMetadata_Picture& picture) {
     return true;
 }
 
-bool FLACtoMP3::decodeFrame(const int32_t * const buffer[], uint32_t size) {
+bool FLACtoMP3::decodeFrame(const int32_t * const buffer[], uint32_t size, uint32_t bitsPerSample) {
     if (!outputInitilized) {
         bool success = initializeOutput();
         if (!success)
             return false;
     }
 
-    for (size_t i = 0; i < size; ++i) {
-        pcm[pcmCounter++] = (int16_t)buffer[0][i];
-        pcm[pcmCounter++] = (int16_t)buffer[1][i];
+    int shiftRight = 0;
+    int shiftLeft = 0;
+    if (bitsPerSample > 16)
+        shiftRight = bitsPerSample - 16;
+    else if (bitsPerSample > 0 && bitsPerSample < 16)
+        shiftLeft = 16 - bitsPerSample;
 
-        if (pcmCounter == pcmSize)
-            return flush();
+    for (size_t i = 0; i < size; ++i) {
+        pcm[pcmCounter++] = (int16_t)((buffer[0][i] >> shiftRight) * (1 << shiftLeft));
+        pcm[pcmCounter++] = (int16_t)((buffer[1][i] >> shiftRight) * (1 << shiftLeft));
+
+        if (pcmCounter == pcmSize && !flush())
+            return false;
     }
 
     return true;
@@ -336,9 +371,12 @@ bool FLACtoMP3::flush() {
         );
     }
 
+    pcmCounter = 0;
     if (nwrite > 0) {
-        int actuallyWritten = fwrite((char*)outputBuffer, nwrite, 1, output);
-        pcmCounter = 0;
+        size_t actuallyWritten = fwrite((char*)outputBuffer, nwrite, 1, output);
+        if (actuallyWritten != 1)
+            logger.fatal("Error writing to " + outPath);
+
         return actuallyWritten == 1;
     } else {
         if (nwrite == 0) {
@@ -395,7 +433,7 @@ FLAC__StreamDecoderWriteStatus FLACtoMP3::write(
         return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
     }
 
-    bool result = self->decodeFrame(buffer, frame->header.blocksize);
+    bool result = self->decodeFrame(buffer, frame->header.blocksize, frame->header.bits_per_sample);
 
     if (result)
         return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;

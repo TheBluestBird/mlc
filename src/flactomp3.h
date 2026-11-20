@@ -20,6 +20,7 @@ public:
 
     void setInputFile(const std::string& path);
     void setOutputFile(const std::string& path);
+    void setAllArtists(bool all);
     void setParameters(unsigned char encodingQuality, unsigned char outputQuality, bool vbr);
     bool run();
 
@@ -29,7 +30,7 @@ private:
     void processTags(const FLAC__StreamMetadata_VorbisComment& tags);
     void processInfo(const FLAC__StreamMetadata_StreamInfo& info);
     void processPicture(const FLAC__StreamMetadata_Picture& picture);
-    bool decodeFrame(const int32_t * const buffer[], uint32_t size);
+    bool decodeFrame(const int32_t * const buffer[], uint32_t size, uint32_t bitsPerSample);
     bool flush();
     bool initializeOutput();
     bool scaleJPEG(const FLAC__StreamMetadata_Picture& picture);
@@ -63,5 +64,6 @@ private:
     uint32_t outputBufferSize;
     bool outputInitilized;
     bool downscaleAlbumArt;
+    bool allArtists;
     TagLib::ID3v2::Tag id3v2tag;
 };

@@ -171,6 +171,7 @@ TaskManager::JobResult TaskManager::mp3Job(const TaskManager::Job& job, const st
     convertor.setInputFile(job.source);
     convertor.setOutputFile(job.destination);
     convertor.setParameters(settings->getEncodingQuality(), settings->getOutputQuality(), settings->getVBR());
+    convertor.setAllArtists(settings->getMultipleArtists() == Settings::allArtists);
     bool result = convertor.run();
 
     return {result, convertor.getHistory()};
@@ -178,13 +179,18 @@ TaskManager::JobResult TaskManager::mp3Job(const TaskManager::Job& job, const st
 
 TaskManager::JobResult TaskManager::copyJob(const TaskManager::Job& job, const std::shared_ptr<Settings>& settings) {
     (void)(settings);
-    bool success = std::filesystem::copy_file(
+    std::error_code ec;
+    std::filesystem::copy_file(
         job.source,
         job.destination,
-        std::filesystem::copy_options::overwrite_existing
+        std::filesystem::copy_options::overwrite_existing,
+        ec
     );
 
-    return {success, {}};
+    if (ec)
+        return {false, {{Logger::Severity::error, "Error copying file: " + ec.message()}}};
+
+    return {true, {}};
 }
 
 TaskManager::Job::Job(Type type, const std::filesystem::path& source, std::filesystem::path destination):

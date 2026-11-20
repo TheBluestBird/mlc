@@ -1,5 +1,13 @@
 # Changelog
 
+## MLC 1.3.5 (November 20, 2026)
+- Handling of multiple ARTIST tags is now configurable with the `multipleArtists` option: keep only the first one (default) or all of them (#1)
+- Fixed 24 bit (and any non 16 bit) FLAC files being encoded into noise
+- Fixed non latin PUBLISHER tag being garbled
+- Tag names are now treated case insensitively
+- Fixed possible loss of samples and buffer overflow in rare encoding cases
+- Failed file copy no longer crashes the whole program
+- Corrupted or empty files are now reported instead of crashing
 ## MLC 1.3.4 (March 30, 2025)
 - Build fixes
 - Source and Destination paths now can contain spaces
